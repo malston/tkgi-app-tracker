@@ -1,0 +1,26 @@
+#!/bin/bash
+# Mock tkgi CLI for testing
+case "$1" in
+    "login")
+        echo "Successfully logged in to TKGI API at mock-pks.test.local"
+        ;;
+    "get-credentials")
+        echo "Fetching credentials for cluster $2..."
+        # Create mock kubeconfig
+        mkdir -p ~/.kube
+        echo "apiVersion: v1" > ~/.kube/config
+        echo "kind: Config" >> ~/.kube/config
+        echo "current-context: mock-context" >> ~/.kube/config
+        ;;
+    "clusters")
+        cat << 'CLUSTER_EOF'
+Name       Plan Name    UUID                                  Status     Action
+test-web   small        12345678-1234-5678-9012-123456789012  succeeded  CREATE
+test-api   small        87654321-4321-8765-2109-876543210987  succeeded  CREATE
+CLUSTER_EOF
+        ;;
+    *)
+        echo "Mock tkgi: command $1 not implemented" >&2
+        exit 1
+        ;;
+esac

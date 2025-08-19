@@ -1,0 +1,72 @@
+# Test container image for TKGI Application Tracker pipeline tasks
+# This image closely mirrors the production s3-container-image used in Concourse
+
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system packages commonly available in Concourse containers
+RUN apt-get update && apt-get install -y \
+    # Basic utilities
+    curl \
+    wget \
+    git \
+    jq \
+    tar \
+    gzip \
+    unzip \
+    # Python and pip
+    python3 \
+    python3-pip \
+    python3-venv \
+    # Shell and text processing
+    bash \
+    shellcheck \
+    # Testing tools
+    bats \
+    # Network tools (for TKGI API calls)
+    ca-certificates \
+    # Build tools (for Python packages)
+    build-essential \
+    python3-dev \
+    # Clean up
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install kubectl for Kubernetes operations
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl \
+    && mv kubectl /usr/local/bin/
+
+# Install om CLI for Ops Manager operations
+RUN wget -q -O - https://github.com/pivotal-cf/om/releases/download/7.16.2/om-linux-amd64-7.16.2 > /usr/local/bin/om \
+    && chmod +x /usr/local/bin/om
+
+# Install tkgi CLI for TKGI operations (if available)
+# Note: This would typically be installed from a private repository
+# For testing, we'll create a mock version
+RUN echo '#!/bin/bash\necho "tkgi mock: $*"' > /usr/local/bin/tkgi \
+    && chmod +x /usr/local/bin/tkgi
+
+# Set up Python environment
+RUN python3 -m pip install --upgrade pip
+
+# Set working directory
+WORKDIR /workspace
+
+# Create standard Concourse task directories
+RUN mkdir -p /workspace/tkgi-app-tracker-repo \
+    /workspace/params \
+    /workspace/collected-data \
+    /workspace/aggregated-data \
+    /workspace/generated-reports \
+    /workspace/packaged-reports \
+    /workspace/test-results
+
+# Set environment variables similar to Concourse
+ENV PATH="/usr/local/bin:${PATH}"
+ENV PYTHONPATH="/workspace/tkgi-app-tracker-repo"
+
+# Default command
+CMD ["/bin/bash"]

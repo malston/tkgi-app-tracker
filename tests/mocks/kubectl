@@ -1,0 +1,51 @@
+#!/bin/bash
+# Mock kubectl for testing
+case "$1" in
+    "get")
+        case "$2" in
+            "namespaces")
+                if [[ "$3" == "-o" && "$4" == "jsonpath={.items[*].metadata.name}" ]]; then
+                    echo "default kube-system test-app-1 test-app-2 test-system-app"
+                elif [[ "$3" == "-o" && "$4" == "json" ]]; then
+                    cat "${TKGI_APP_TRACKER_TEST_FIXTURES}/mock-namespace.json"
+                else
+                    echo "namespace-1 namespace-2"
+                fi
+                ;;
+            "pods")
+                if [[ "$*" == *"--field-selector=status.phase=Running"* ]]; then
+                    echo "pod-1   1/1   Running   0   1d"
+                    echo "pod-2   1/1   Running   0   2d"
+                elif [[ "$*" == *"-o json"* ]]; then
+                    cat "${TKGI_APP_TRACKER_TEST_FIXTURES}/mock-pods.json"
+                else
+                    echo "pod-1   1/1   Running   0   1d"
+                    echo "pod-2   0/1   Pending   0   1h"
+                    echo "pod-3   1/1   Running   0   3d"
+                fi
+                ;;
+            "deployments")
+                if [[ "$*" == *"-o json"* ]]; then
+                    cat "${TKGI_APP_TRACKER_TEST_FIXTURES}/mock-deployments.json"
+                else
+                    echo "deploy-1   2/2   2   2   1d"
+                fi
+                ;;
+            "services")
+                if [[ "$*" == *"-o json"* ]]; then
+                    cat "${TKGI_APP_TRACKER_TEST_FIXTURES}/mock-services.json"
+                else
+                    echo "svc-1   ClusterIP   10.0.0.1   <none>   80/TCP   1d"
+                fi
+                ;;
+            *)
+                echo "Mock kubectl: unknown resource $2" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+    *)
+        echo "Mock kubectl: command $1 not implemented" >&2
+        exit 1
+        ;;
+esac

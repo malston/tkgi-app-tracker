@@ -1,0 +1,16 @@
+# Test parameters for foundation
+foundation: dc01-k8s-n-01
+datacenter: dc01
+environment: lab
+
+# Test TKGI configuration
+om_target: opsman.acme.com
+om_client_id: test-client-id
+om_client_secret: test-client-secret
+tkgi_api_endpoint: api.pks.acme.com
+
+# Test cluster list
+clusters:
+  - cluster-web-01
+  - cluster-api-01
+  - cluster-data-01

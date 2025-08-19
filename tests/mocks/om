@@ -1,0 +1,23 @@
+#!/bin/bash
+# Mock om CLI for testing
+case "$1" in
+    "configure-authentication")
+        echo "Configuring authentication..."
+        ;;
+    "credentials")
+        if [[ "$*" == *"pivotal-container-service"* ]]; then
+            cat << 'CRED_EOF'
+{
+  ".properties.pks_api_hostname": {"value": "api.pks.test.local"},
+  ".pivotal-container-service.pks_tls": {
+    "cert_pem": "-----BEGIN CERTIFICATE-----\nMOCK_CERT\n-----END CERTIFICATE-----"
+  }
+}
+CRED_EOF
+        fi
+        ;;
+    *)
+        echo "Mock om: command $1 not implemented" >&2
+        exit 1
+        ;;
+esac

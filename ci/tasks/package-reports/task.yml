@@ -1,0 +1,16 @@
+---
+platform: linux
+
+
+inputs:
+- name: tkgi-app-tracker-repo
+- name: generated-reports
+
+outputs:
+- name: packaged-reports
+
+params:
+  ENVIRONMENT: "unknown"
+
+run:
+  path: tkgi-app-tracker-repo/ci/tasks/package-reports/task.sh

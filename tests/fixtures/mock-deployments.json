@@ -1,0 +1,30 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DeploymentList",
+  "items": [
+    {
+      "metadata": {
+        "name": "test-deployment",
+        "namespace": "test-app-1",
+        "creationTimestamp": "2025-01-15T10:30:00Z",
+        "annotations": {
+          "deployment.kubernetes.io/revision": "3"
+        }
+      },
+      "spec": {
+        "replicas": 2,
+        "selector": {
+          "matchLabels": {
+            "app": "test-app"
+          }
+        }
+      },
+      "status": {
+        "replicas": 2,
+        "readyReplicas": 2,
+        "updatedReplicas": 2,
+        "availableReplicas": 2
+      }
+    }
+  ]
+}

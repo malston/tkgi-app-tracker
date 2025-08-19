@@ -1,0 +1,7 @@
+# Production dependencies
+openpyxl>=3.1.0  # For Excel workbook generation with charts and pivot tables
+
+# Development dependencies (optional)
+# Add these as needed:
+# pylint>=2.15.0    # For code linting
+# pytest>=7.0.0     # For testing framework

@@ -1,0 +1,9 @@
+---
+platform: linux
+
+
+inputs:
+- name: tkgi-app-tracker-repo
+
+run:
+  path: tkgi-app-tracker-repo/ci/tasks/run-tests/task.sh

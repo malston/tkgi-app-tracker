@@ -1,0 +1,12 @@
+---
+platform: linux
+
+inputs:
+- name: tkgi-app-tracker-repo
+- name: collected-data
+
+outputs:
+- name: aggregated-data
+
+run:
+  path: tkgi-app-tracker-repo/ci/tasks/aggregate-data/task.sh

@@ -1,0 +1,31 @@
+# TKGI Application Tracker Parameters Template
+# Copy this file to ~/git/params/{datacenter}/{foundation-name}-tkgi-app-tracker.yml
+# Example: ~/git/params/dc01/dc01-k8s-n-01-tkgi-app-tracker.yml
+
+# Git Configuration
+git_uri: git@github.com:your-org/tkgi-app-tracker.git
+config_git_uri: git@github.com:your-org/config-lab.git
+config_git_branch: master
+git_release_tag: main
+version_file: version
+
+# S3 Configuration for Reports
+s3_bucket: tkgi-app-tracker-reports
+s3_region: us-east-1
+s3_access_key_id: ((s3-access-key-id))
+s3_secret_access_key: ((s3-secret-access-key))
+
+# Teams Notification Configuration
+teams_webhook_url: ((teams-webhook-url))
+
+# Pipeline Configuration
+timer_duration: 3h
+dry_run: false
+verbose: false
+# Foundation-specific TKGI Configuration
+# These will be populated automatically from the foundation parameter file
+# foundation: auto-populated from parameter file name
+# om_target: auto-populated from foundation params
+# om_client_id: ((foundation-name-om-client-id))
+# om_client_secret: ((foundation-name-om-client-secret))
+# tkgi_api_endpoint: auto-constructed from foundation params

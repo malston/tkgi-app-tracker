@@ -1,0 +1,48 @@
+# Data and reports
+data/*.json
+data/*.csv
+reports/*.csv
+reports/*.json
+reports/*.html
+tests/output/test-report.txt
+test-output/
+
+# Excel files
+*.xlsx
+*.xls
+~$*.xlsx
+
+# Credentials and sensitive data
+config/credentials.yml
+config/*.key
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# MacOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Test coverage
+.coverage
+htmlcov/

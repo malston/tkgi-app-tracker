@@ -1,38 +1,32 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -e
 
 # Function to determine notification style based on type
-get_notification_payload() {
+function get_notification_payload() {
   local message="$1"
   local type="${2:-info}"
-  local color
   local icon
   local title
 
   case "$type" in
     success)
-      color="Good"
       icon="✅"
       title="Success"
       ;;
     error|failure)
-      color="Attention"
       icon="❌"
       title="Error"
       ;;
     warning|warn)
-      color="Warning"
       icon="⚠️"
       title="Warning"
       ;;
     info)
-      color="Accent"
       icon="ℹ️"
       title="Information"
       ;;
     *)
-      color="Accent"
       icon="📢"
       title="Notification"
       ;;

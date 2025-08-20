@@ -6,6 +6,7 @@ reports/*.json
 reports/*.html
 tests/output/test-report.txt
 test-output/
+sample-data/reports/
 
 # Excel files
 *.xlsx

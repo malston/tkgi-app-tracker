@@ -41,7 +41,7 @@ Run comprehensive test suite for TKGI Application Tracker
 
 OPTIONS:
     --unit-only         Run only Python unit tests
-    --integration-only  Run only integration tests  
+    --integration-only  Run only integration tests
     --bats-only         Run only BATS shell tests
     --coverage          Generate coverage reports (requires coverage.py)
     --ci                CI mode - machine readable output, fail fast
@@ -103,86 +103,87 @@ function log_warn() {
 
 function check_dependencies() {
     log_info "Checking test dependencies..."
-    
+
     local missing_deps=()
-    
+
     # Check Python
     if ! command -v python3 &> /dev/null; then
         missing_deps+=("python3")
     fi
-    
+
     # Check BATS (optional)
     if [[ "$RUN_BATS_TESTS" == "true" ]] && ! command -v bats &> /dev/null; then
         log_warn "BATS not found - shell tests will be skipped"
         RUN_BATS_TESTS=false
     fi
-    
+
     # Check coverage (optional)
     if [[ "$GENERATE_COVERAGE" == "true" ]] && ! python3 -c "import coverage" 2>/dev/null; then
         log_warn "coverage.py not found - coverage reporting disabled"
         GENERATE_COVERAGE=false
     fi
-    
+
     # Check Docker for integration tests
     if [[ "$RUN_INTEGRATION_TESTS" == "true" ]] && ! command -v docker &> /dev/null; then
         log_warn "Docker not found - integration tests may fail"
     fi
-    
+
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         log_error "Missing required dependencies: ${missing_deps[*]}"
         return 3
     fi
-    
+
     log_success "Dependencies check completed"
     return 0
 }
 
 function setup_test_environment() {
     log_info "Setting up test environment..."
-    
+
     # Create test output directory
     mkdir -p "$TEST_OUTPUT_DIR"
-    
+
     # Set test environment variables
     export TKGI_APP_TRACKER_TEST_MODE=true
     export PYTHONPATH="${PROJECT_ROOT}/scripts:${PYTHONPATH:-}"
-    
+
     # Set up PATH for test utilities
     export PATH="${SCRIPT_DIR}:${PATH}"
-    
+
     log_success "Test environment ready"
 }
 
 function run_python_unit_tests() {
     log_info "Running Python unit tests..."
-    
+
     TOTAL_TEST_SUITES=$((TOTAL_TEST_SUITES + 1))
-    
+
     local test_files=(
         "${SCRIPT_DIR}/test_aggregate_data.py"
         "${SCRIPT_DIR}/test_generate_reports.py"
     )
-    
+
     local python_cmd="python3"
     local test_args=()
-    
+
     if [[ "$GENERATE_COVERAGE" == "true" ]]; then
         python_cmd="python3 -m coverage"
         test_args+=("run" "--parallel-mode" "--source=${PROJECT_ROOT}/scripts")
     fi
-    
+
     if [[ "$VERBOSE" == "true" ]]; then
         test_args+=("-v")
     fi
-    
+
     local python_test_failed=false
-    
+
     for test_file in "${test_files[@]}"; do
         if [[ -f "$test_file" ]]; then
             log_info "Running $(basename "$test_file")..."
-            
-            local output_file="${TEST_OUTPUT_DIR}/$(basename "$test_file" .py).log"
-            
+
+            local output_file
+            output_file="${TEST_OUTPUT_DIR}/$(basename "$test_file" .py).log"
+
             if [[ "$VERBOSE" == "true" ]]; then
                 if $python_cmd "${test_args[@]}" "$test_file"; then
                     log_success "$(basename "$test_file") passed"
@@ -206,7 +207,7 @@ function run_python_unit_tests() {
             fi
         fi
     done
-    
+
     # Combine coverage data if generated
     if [[ "$GENERATE_COVERAGE" == "true" ]]; then
         log_info "Combining coverage data..."
@@ -216,7 +217,7 @@ function run_python_unit_tests() {
         python3 -m coverage html -d "${TEST_OUTPUT_DIR}/coverage-html"
         log_success "Coverage report generated in ${TEST_OUTPUT_DIR}/coverage-html/"
     fi
-    
+
     if [[ "$python_test_failed" == "true" ]]; then
         FAILED_TEST_SUITES=$((FAILED_TEST_SUITES + 1))
         FAILED_SUITES+=("Python Unit Tests")
@@ -229,27 +230,28 @@ function run_python_unit_tests() {
 
 function run_bats_tests() {
     log_info "Running BATS shell tests..."
-    
+
     TOTAL_TEST_SUITES=$((TOTAL_TEST_SUITES + 1))
-    
+
     if ! command -v bats &> /dev/null; then
         log_warn "BATS not available - skipping shell tests"
         return 0
     fi
-    
+
     local bats_files=(
         "${SCRIPT_DIR}/test_foundation_utils.bats"
         "${SCRIPT_DIR}/test_helpers.bats"
     )
-    
+
     local bats_failed=false
-    
+
     for bats_file in "${bats_files[@]}"; do
         if [[ -f "$bats_file" ]]; then
             log_info "Running $(basename "$bats_file")..."
-            
-            local output_file="${TEST_OUTPUT_DIR}/$(basename "$bats_file" .bats).log"
-            
+
+            local output_file
+            output_file="${TEST_OUTPUT_DIR}/$(basename "$bats_file" .bats).log"
+
             if [[ "$VERBOSE" == "true" ]]; then
                 if bats "$bats_file"; then
                     log_success "$(basename "$bats_file") passed"
@@ -273,7 +275,7 @@ function run_bats_tests() {
             fi
         fi
     done
-    
+
     if [[ "$bats_failed" == "true" ]]; then
         FAILED_TEST_SUITES=$((FAILED_TEST_SUITES + 1))
         FAILED_SUITES+=("BATS Shell Tests")
@@ -286,20 +288,21 @@ function run_bats_tests() {
 
 function run_integration_tests() {
     log_info "Running integration tests..."
-    
+
     TOTAL_TEST_SUITES=$((TOTAL_TEST_SUITES + 1))
-    
+
     local integration_test="${SCRIPT_DIR}/test_pipeline_integration.sh"
-    
+
     if [[ ! -f "$integration_test" ]]; then
         log_error "Integration test file not found: $integration_test"
         FAILED_TEST_SUITES=$((FAILED_TEST_SUITES + 1))
         FAILED_SUITES+=("Integration Tests")
         return 1
     fi
-    
-    local output_file="${TEST_OUTPUT_DIR}/integration-tests.log"
-    
+
+    local output_file
+    output_file="${TEST_OUTPUT_DIR}/integration-tests.log"
+
     if [[ "$VERBOSE" == "true" ]]; then
         if "$integration_test"; then
             log_success "Integration tests passed"
@@ -327,10 +330,10 @@ function run_integration_tests() {
 
 function generate_test_report() {
     local report_file="${TEST_OUTPUT_DIR}/test-report.txt"
-    
+
     # Ensure output directory exists
     mkdir -p "${TEST_OUTPUT_DIR}"
-    
+
     {
         echo "TKGI Application Tracker - Test Report"
         echo "======================================"
@@ -341,7 +344,7 @@ function generate_test_report() {
         echo "  Passed: $PASSED_TEST_SUITES"
         echo "  Failed: $FAILED_TEST_SUITES"
         echo ""
-        
+
         if [[ ${#FAILED_SUITES[@]} -gt 0 ]]; then
             echo "Failed Test Suites:"
             for suite in "${FAILED_SUITES[@]}"; do
@@ -349,24 +352,24 @@ function generate_test_report() {
             done
             echo ""
         fi
-        
+
         if [[ "$GENERATE_COVERAGE" == "true" && -f "${TEST_OUTPUT_DIR}/coverage-report.txt" ]]; then
             echo "Coverage Report:"
             cat "${TEST_OUTPUT_DIR}/coverage-report.txt"
             echo ""
         fi
-        
+
         echo "Test Environment:"
         echo "  Python: $(python3 --version 2>&1)"
         echo "  BATS: $(command -v bats &>/dev/null && bats --version || echo 'Not available')"
         echo "  Docker: $(command -v docker &>/dev/null && docker --version || echo 'Not available')"
         echo ""
-        
+
         echo "Test Logs Available:"
         find "$TEST_OUTPUT_DIR" -name "*.log" -exec basename {} \; | sort
-        
+
     } > "$report_file"
-    
+
     log_info "Test report generated: $report_file"
 }
 
@@ -378,11 +381,11 @@ function print_test_summary() {
     else
         echo "TEST_SUMMARY_START"
     fi
-    
+
     echo "Total Test Suites: $TOTAL_TEST_SUITES"
     echo "Passed: $PASSED_TEST_SUITES"
     echo "Failed: $FAILED_TEST_SUITES"
-    
+
     if [[ ${#FAILED_SUITES[@]} -gt 0 ]]; then
         echo ""
         echo "Failed Test Suites:"
@@ -390,11 +393,11 @@ function print_test_summary() {
             echo "  - $suite"
         done
     fi
-    
+
     if [[ "$CI_MODE" == "true" ]]; then
         echo "TEST_SUMMARY_END"
     fi
-    
+
     if [[ $FAILED_TEST_SUITES -eq 0 ]]; then
         log_success "ALL TESTS PASSED"
         return 0
@@ -454,36 +457,36 @@ function main() {
                 ;;
         esac
     done
-    
+
     # Check dependencies
     if ! check_dependencies; then
         exit $?
     fi
-    
+
     # Setup test environment
     setup_test_environment
-    
+
     if [[ "$CI_MODE" == "false" ]]; then
         log_info "TKGI Application Tracker - Test Suite Runner"
         log_info "============================================"
     fi
-    
+
     # Run test suites
     if [[ "$RUN_UNIT_TESTS" == "true" ]]; then
         run_python_unit_tests || true
     fi
-    
+
     if [[ "$RUN_BATS_TESTS" == "true" ]]; then
         run_bats_tests || true
     fi
-    
+
     if [[ "$RUN_INTEGRATION_TESTS" == "true" ]]; then
         run_integration_tests || true
     fi
-    
+
     # Generate test report
     generate_test_report
-    
+
     # Print summary and exit
     if print_test_summary; then
         exit 0

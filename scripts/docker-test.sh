@@ -33,11 +33,12 @@ the Concourse execution environment.
 
 TASKS:
     collect-data      Test data collection from TKGI clusters
-    aggregate-data    Test data aggregation across multiple clusters  
+    aggregate-data    Test data aggregation across multiple clusters
     generate-reports  Test CSV and JSON report generation
     package-reports   Test report packaging for distribution
     run-tests         Run unit and integration tests
     validate-scripts  Validate shell scripts, Python syntax, and YAML files
+    notify            Test Teams notification functionality
     dev               Start interactive development environment
     full-pipeline     Run complete pipeline sequence
 
@@ -50,7 +51,7 @@ OPTIONS:
 
 ENVIRONMENT VARIABLES:
     OM_TARGET                     Ops Manager endpoint (for testing)
-    OM_CLIENT_ID                  OAuth2 client ID (for testing) 
+    OM_CLIENT_ID                  OAuth2 client ID (for testing)
     OM_CLIENT_SECRET              OAuth2 client secret (for testing)
     TKGI_API_ENDPOINT             TKGI API endpoint (for testing)
 
@@ -95,10 +96,10 @@ function error() {
 
 function setup_test_data() {
     info "Setting up test data directory..."
-    
+
     mkdir -p "${PROJECT_ROOT}/test-data"
     mkdir -p "${PROJECT_ROOT}/test-output"
-    
+
     # Create basic test parameters file
     cat > "${PROJECT_ROOT}/test-data/foundation-params.yml" << 'EOF'
 # Test parameters for foundation
@@ -106,7 +107,7 @@ foundation: dc01-k8s-n-01
 datacenter: dc01
 environment: lab
 
-# Test TKGI configuration  
+# Test TKGI configuration
 om_target: opsman.acme.com
 om_client_id: test-client-id
 om_client_secret: test-client-secret
@@ -133,11 +134,11 @@ function cleanup_containers() {
 
 function run_task() {
     local task="$1"
-    
+
     info "Running task: $task"
-    
+
     cd "$PROJECT_ROOT"
-    
+
     # Set up environment variables for Docker Compose
     export FOUNDATION="$FOUNDATION"
     export DATACENTER
@@ -147,13 +148,13 @@ function run_task() {
         dc01) ENVIRONMENT="lab" ;;
         *) ENVIRONMENT="nonprod" ;;
     esac
-    
+
     # Use test credentials if not provided
     export OM_TARGET="${OM_TARGET:-opsman.acme.com}"
     export OM_CLIENT_ID="${OM_CLIENT_ID:-test-client}"
     export OM_CLIENT_SECRET="${OM_CLIENT_SECRET:-test-secret}"
     export TKGI_API_ENDPOINT="${TKGI_API_ENDPOINT:-api.pks.acme.com}"
-    
+
     if [[ "$INTERACTIVE" == "true" ]] && [[ "$task" == "dev" ]]; then
         info "Starting interactive development environment..."
         docker-compose -f docker-compose.test.yml run --rm "$task"
@@ -164,7 +165,7 @@ function run_task() {
             docker-compose -f docker-compose.test.yml up --abort-on-container-exit "$task" > /dev/null
         fi
     fi
-    
+
     # Check exit code
     local exit_code=$?
     if [[ $exit_code -eq 0 ]]; then
@@ -177,9 +178,9 @@ function run_task() {
 
 function run_full_pipeline() {
     info "Running full pipeline test sequence..."
-    
+
     local tasks=("collect-data" "aggregate-data" "generate-reports" "package-reports" "run-tests" "validate-scripts")
-    
+
     for task in "${tasks[@]}"; do
         info "Pipeline step: $task"
         if ! run_task "$task"; then
@@ -187,7 +188,7 @@ function run_full_pipeline() {
             return 1
         fi
     done
-    
+
     success "Full pipeline test completed successfully!"
 }
 
@@ -195,7 +196,7 @@ function main() {
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
-            collect-data|aggregate-data|generate-reports|package-reports|run-tests|validate-scripts|dev|full-pipeline)
+            collect-data|aggregate-data|generate-reports|package-reports|run-tests|validate-scripts|notify|dev|full-pipeline)
                 TASK="$1"
                 shift
                 ;;
@@ -226,45 +227,45 @@ function main() {
                 ;;
         esac
     done
-    
+
     # Validate task is specified
     if [[ -z "$TASK" ]]; then
         error "Task must be specified"
         usage
         exit 1
     fi
-    
+
     # Check Docker is available
     if ! command -v docker &> /dev/null; then
         error "Docker is required but not installed"
         exit 1
     fi
-    
+
     if ! command -v docker-compose &> /dev/null; then
         error "Docker Compose is required but not installed"
         exit 1
     fi
-    
+
     # Setup cleanup trap
     trap cleanup_containers EXIT
-    
+
     # Setup test environment
     setup_test_data
-    
+
     info "TKGI Application Tracker - Docker Task Testing"
     info "============================================="
     info "Task: $TASK"
     info "Foundation: $FOUNDATION"
     info "Verbose: $VERBOSE"
     info "Interactive: $INTERACTIVE"
-    
+
     # Run the requested task
     if [[ "$TASK" == "full-pipeline" ]]; then
         run_full_pipeline
     else
         run_task "$TASK"
     fi
-    
+
     success "Docker task testing completed!"
 }
 

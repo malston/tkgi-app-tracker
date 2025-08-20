@@ -6,6 +6,7 @@ inputs:
 
 params:
   MESSAGE: "TKGI App Tracker notification"
+  NOTIFICATION_TYPE: "info"
   WEBHOOK_URL:
 
 run:

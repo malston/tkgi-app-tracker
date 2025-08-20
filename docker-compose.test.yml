@@ -38,7 +38,7 @@ services:
     command: >
       bash -c "
         # Install required tools
-        apt-get update && 
+        apt-get update &&
         apt-get install -y curl wget jq python3 python3-pip git &&
         # Create build directory like Concourse does
         mkdir -p /tmp/build &&
@@ -64,7 +64,7 @@ services:
     command: >
       bash -c "
         # Install required tools
-        apt-get update && 
+        apt-get update &&
         apt-get install -y curl wget jq python3 python3-pip git &&
         # Create build directory like Concourse does
         mkdir -p /tmp/build &&
@@ -93,7 +93,7 @@ services:
     command: >
       bash -c "
         # Install required tools
-        apt-get update && 
+        apt-get update &&
         apt-get install -y curl wget jq python3 python3-pip git &&
         # Create build directory like Concourse does
         mkdir -p /tmp/build &&
@@ -122,7 +122,7 @@ services:
     command: >
       bash -c "
         # Install required tools
-        apt-get update && 
+        apt-get update &&
         apt-get install -y curl jq python3 python3-pip git tar gzip &&
         # Create build directory like Concourse does
         mkdir -p /tmp/build &&
@@ -150,7 +150,7 @@ services:
     command: >
       bash -c "
         # Install required tools including bats
-        apt-get update && 
+        apt-get update &&
         apt-get install -y curl jq python3 python3-pip git bats &&
         # Create build directory like Concourse does
         mkdir -p /tmp/build &&
@@ -177,7 +177,7 @@ services:
     command: >
       bash -c "
         # Install required tools including Python and YAML validation
-        apt-get update && 
+        apt-get update &&
         apt-get install -y curl jq python3 python3-pip git shellcheck &&
         pip3 install PyYAML &&
         # Create build directory like Concourse does
@@ -194,6 +194,31 @@ services:
     profiles:
       - validate-scripts
 
+  # Notification task testing
+  notify:
+    extends: tkgi-task-base
+    environment:
+      - MESSAGE=Test notification from TKGI Application Tracker
+      - NOTIFICATION_TYPE=info
+      - WEBHOOK_URL=
+    command: >
+      bash -c "
+        # Install required tools
+        apt-get update &&
+        apt-get install -y curl jq &&
+        # Create build directory like Concourse does
+        mkdir -p /tmp/build &&
+        cd /tmp/build &&
+        # Copy inputs as Concourse would mount them
+        cp -r /workspace/tkgi-app-tracker-repo . &&
+        # Make scripts executable
+        find tkgi-app-tracker-repo -name '*.sh' -type f -exec chmod +x {} + &&
+        # Run the notification task
+        tkgi-app-tracker-repo/ci/tasks/notify/task.sh
+      "
+    profiles:
+      - notify
+
   # Interactive development environment
   # Use this for debugging and development
   dev:
@@ -205,7 +230,7 @@ services:
     command: >
       bash -c "
         # Install development tools
-        apt-get update && 
+        apt-get update &&
         apt-get install -y curl jq python3 python3-pip git vim bats shellcheck &&
         pip3 install -r /workspace/tkgi-app-tracker-repo/requirements.txt &&
         # Make scripts executable for development

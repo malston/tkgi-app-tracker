@@ -28,7 +28,7 @@ setup() {
 }
 
 @test "get_environment_code should extract environment code" {
-    result=$(get_environment_code "dc01-k8s-n-01")
+    result=$(get_environment_code "dc01-k8s-l-01")
     [ "$result" = "l" ]
     
     result=$(get_environment_code "dc02-k8s-n-01") 

@@ -39,17 +39,17 @@ done
 
 # Validate pipeline YAML
 echo "Validating pipeline YAML..."
-if [ -f ci/pipeline.yml ]; then
+if [ -f ci/pipelines/single-foundation-report.yml ]; then
   # Basic YAML validation
   python3 -c "
 import yaml
 import sys
 try:
-    with open('ci/pipeline.yml', 'r') as f:
+    with open('ci/pipelines/single-foundation-report.yml', 'r') as f:
         yaml.safe_load(f)
-    print('✓ ci/pipeline.yml is valid YAML')
+    print('✓ ci/pipelines/single-foundation-report.yml is valid YAML')
 except yaml.YAMLError as e:
-    print(f'✗ ci/pipeline.yml YAML error: {e}')
+    print(f'✗ ci/pipelines/single-foundation-report.yml YAML error: {e}')
     sys.exit(1)
 "
 fi

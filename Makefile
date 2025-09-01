@@ -17,6 +17,9 @@ FOUNDATION ?= dc01-k8s-n-01
 SEED ?= 42
 VERBOSE ?= false
 
+# Cross-foundation aggregation settings
+FOUNDATION_REPORTS_DIR ?=
+
 # Colors for output - set NO_COLOR=1 to disable colors
 ifndef NO_COLOR
     GREEN := \033[0;32m
@@ -34,7 +37,7 @@ else
     NC :=
 endif
 
-.PHONY: help all clean sample-data csv-reports excel-reports test validate setup venv install clean-venv docker-build docker-test docker-dev docker-clean
+.PHONY: help all clean sample-data csv-reports excel-reports cross-foundation-report cross-foundation-test test validate setup venv install clean-venv docker-build docker-test docker-dev docker-clean
 
 # Default target - show help
 .DEFAULT_GOAL := help
@@ -111,6 +114,17 @@ excel-reports: csv-reports install ## Generate Excel workbook with charts and pi
 	@$(PYTHON) $(SCRIPTS_DIR)/generate-excel-template.py --output-dir $(REPORTS_DIR) $(if $(filter true,$(VERBOSE)),--verbose)
 	@echo "✅ Excel workbook generated"
 
+cross-foundation-report: install ## Aggregate CSV reports from multiple foundation directories
+	@if [ -z "$(FOUNDATION_REPORTS_DIR)" ]; then \
+		printf "$(RED)❌ FOUNDATION_REPORTS_DIR parameter required$(NC)\n"; \
+		printf "$(WHITE)Example: make cross-foundation-report FOUNDATION_REPORTS_DIR=foundation-reports$(NC)\n"; \
+		printf "$(WHITE)Or test with: make cross-foundation-test$(NC)\n"; \
+		exit 1; \
+	fi
+	@printf "$(CYAN)🌐 Aggregating reports from: $(FOUNDATION_REPORTS_DIR)$(NC)\n"
+	@$(PYTHON) $(SCRIPTS_DIR)/aggregate-cross-foundation.py $(FOUNDATION_REPORTS_DIR) $(if $(filter true,$(VERBOSE)),--verbose)
+	@printf "$(GREEN)✅ Cross-foundation aggregation complete$(NC)\n"
+
 quick-excel: install ## Quick Excel generation (skip data regeneration)
 	@echo "📈 Generating Excel workbook from existing data..."
 	@$(PYTHON) $(SCRIPTS_DIR)/generate-excel-template.py --output-dir $(REPORTS_DIR) $(if $(filter true,$(VERBOSE)),--verbose)
@@ -125,6 +139,39 @@ test-foundation: ## Test data collection with specific foundation
 	@echo "🌐 Testing with foundation: $(FOUNDATION)"
 	@./scripts/docker-test.sh collect-data -f $(FOUNDATION) $(if $(filter true,$(VERBOSE)),-v)
 	@echo "✅ Foundation test complete"
+
+cross-foundation-test: csv-reports install ## Test cross-foundation aggregation with sample data
+	@printf "$(CYAN)🧪 Testing cross-foundation aggregation with sample data...$(NC)\n"
+	@rm -rf test-cross-foundation 2>/dev/null || true
+	@mkdir -p test-cross-foundation/{dc01-k8s-n-01,dc02-k8s-n-01,dc03-k8s-n-02}
+	@printf "$(YELLOW)📋 Creating foundation-specific test data...$(NC)\n"
+	@LATEST_CSV=$$(ls -t $(REPORTS_DIR)/application_report_*.csv 2>/dev/null | head -1); \
+	if [ -n "$$LATEST_CSV" ]; then \
+		printf "Using CSV file: $$LATEST_CSV\n"; \
+		for f in dc01-k8s-n-01 dc02-k8s-n-01 dc03-k8s-n-02; do \
+			head -1 "$$LATEST_CSV" > "test-cross-foundation/$$f/application_report_test.csv"; \
+			grep "$$f" "$$LATEST_CSV" >> "test-cross-foundation/$$f/application_report_test.csv" || true; \
+			count=$$(wc -l < "test-cross-foundation/$$f/application_report_test.csv"); \
+			count=$$((count - 1)); \
+			if [ $$count -gt 0 ]; then \
+				printf "✓ $$f: $$count applications\n"; \
+				echo "Foundation,Cluster,Total_Applications,Status" > "test-cross-foundation/$$f/cluster_report_test.csv"; \
+				echo "$$f,$$f,$$count,Healthy" >> "test-cross-foundation/$$f/cluster_report_test.csv"; \
+				echo "Foundation,Total_Applications,Active_Applications" > "test-cross-foundation/$$f/executive_summary_test.csv"; \
+				echo "$$f,$$count,$$count" >> "test-cross-foundation/$$f/executive_summary_test.csv"; \
+				cp "test-cross-foundation/$$f/application_report_test.csv" "test-cross-foundation/$$f/migration_priority_test.csv"; \
+			fi; \
+		done; \
+	else \
+		printf "$(RED)❌ No CSV reports found. Run 'make csv-reports' first.$(NC)\n"; \
+		exit 1; \
+	fi
+	@printf "$(CYAN)🌐 Running cross-foundation aggregation...$(NC)\n"
+	@$(PYTHON) $(SCRIPTS_DIR)/aggregate-cross-foundation.py test-cross-foundation $(if $(filter true,$(VERBOSE)),--verbose)
+	@printf "$(GREEN)✅ Cross-foundation aggregation test complete!$(NC)\n"
+	@printf "$(WHITE)📂 Results available in: test-cross-foundation/consolidated/$(NC)\n"
+	@ls -la test-cross-foundation/consolidated/ 2>/dev/null || true
+# 	@rm -rf test-cross-foundation
 
 validate: ## Validate generated reports and data quality
 	@echo "✔️  Validating generated reports..."
@@ -241,7 +288,7 @@ docker-test: ## Run pipeline tasks using Docker (TASK=collect-data|aggregate-dat
 	@printf "$(CYAN)Running Docker-based task testing...$(NC)\n"
 	@./scripts/docker-test.sh $(TASK) $(if $(FOUNDATION),-f $(FOUNDATION)) $(if $(filter true,$(VERBOSE)),-v)
 
-docker-dev: ## Start interactive Docker development environment  
+docker-dev: ## Start interactive Docker development environment
 	@printf "$(CYAN)Starting Docker development environment...$(NC)\n"
 	@./scripts/docker-test.sh dev -i
 
@@ -261,13 +308,21 @@ test-unit: ## Run Python unit tests only
 	@printf "$(CYAN)Running Python unit tests...$(NC)\n"
 	@./tests/run-all-tests.sh --unit-only $(if $(filter true,$(VERBOSE)),--verbose)
 
-test-integration: ## Run integration tests only  
+test-integration: ## Run integration tests only
 	@printf "$(CYAN)Running integration tests...$(NC)\n"
 	@./tests/run-all-tests.sh --integration-only $(if $(filter true,$(VERBOSE)),--verbose)
 
 test-shell: ## Run shell script tests (BATS) only
 	@printf "$(CYAN)Running shell script tests...$(NC)\n"
 	@./tests/run-all-tests.sh --bats-only $(if $(filter true,$(VERBOSE)),--verbose)
+
+test-jq: ## Validate jq syntax in scripts
+	@printf "$(CYAN)Running jq syntax validation...$(NC)\n"
+	@./tests/test-jq-syntax.sh
+
+test-json-combo: ## Test JSON combination logic
+	@printf "$(CYAN)Running JSON combination tests...$(NC)\n"
+	@bats tests/test-json-combination.bats
 
 test-coverage: ## Run tests with coverage reporting
 	@printf "$(CYAN)Running tests with coverage reporting...$(NC)\n"
@@ -281,3 +336,24 @@ test-clean: ## Clean test output and temporary files
 	@printf "$(CYAN)Cleaning test output...$(NC)\n"
 	@rm -rf tests/output tests/mocks
 	@printf "$(GREEN)✅ Test output cleaned$(NC)\n"
+
+##@ Utilities
+
+zip-changes: ## Create zip file of all unstaged git changes preserving directory structure
+	@printf "$(CYAN)Creating zip file of unstaged changes...$(NC)\n"
+	@rm -rf /tmp/zip-staging 2>/dev/null || true
+	@mkdir -p /tmp/zip-staging
+	@PROJECT_NAME=$$(basename "$$(pwd)"); \
+	if git status --porcelain | grep -q "^ M"; then \
+		git status --porcelain | grep "^ M" | cut -c4- | while read file; do \
+			mkdir -p "/tmp/zip-staging/$$PROJECT_NAME/$$(dirname "$$file")"; \
+			cp "$$file" "/tmp/zip-staging/$$PROJECT_NAME/$$file"; \
+		done; \
+		cd /tmp/zip-staging && zip -r "$${OLDPWD}/$$PROJECT_NAME-modified-files.zip" "$$PROJECT_NAME/"; \
+		cd - > /dev/null; \
+		rm -rf /tmp/zip-staging; \
+		printf "$(GREEN)✅ Created $$PROJECT_NAME-modified-files.zip$(NC)\n"; \
+		ls -lh "$$PROJECT_NAME-modified-files.zip"; \
+	else \
+		printf "$(YELLOW)⚠️  No unstaged changes found$(NC)\n"; \
+	fi

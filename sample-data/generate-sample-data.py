@@ -25,12 +25,12 @@ class SampleDataGenerator:
 
         # Sample data configuration - Generic datacenter references
         self.foundations = {
-            'dc01-k8s-n-01': {'datacenter': 'dc01', 'environment': 'lab', 'clusters': 5},
+            'dc01-k8s-n-01': {'datacenter': 'dc01', 'environment': 'lab', 'clusters': 2},
             'dc01-k8s-n-02': {'datacenter': 'dc01', 'environment': 'lab', 'clusters': 3},
-            'dc02-k8s-n-01': {'datacenter': 'dc02', 'environment': 'nonprod', 'clusters': 8},
-            'dc02-k8s-n-02': {'datacenter': 'dc02', 'environment': 'nonprod', 'clusters': 6},
-            'dc03-k8s-p-01': {'datacenter': 'dc03', 'environment': 'prod', 'clusters': 12},
-            'dc03-k8s-p-02': {'datacenter': 'dc03', 'environment': 'prod', 'clusters': 10},
+            'dc02-k8s-n-01': {'datacenter': 'dc02', 'environment': 'lab', 'clusters': 3},
+            'dc02-k8s-n-02': {'datacenter': 'dc02', 'environment': 'lab', 'clusters': 5},
+            'dc03-k8s-n-01': {'datacenter': 'dc03', 'environment': 'nonprod', 'clusters': 8},
+            'dc03-k8s-n-02': {'datacenter': 'dc03', 'environment': 'nonprod', 'clusters': 6},
             'dc04-k8s-p-01': {'datacenter': 'dc04', 'environment': 'prod', 'clusters': 15},
             'dc04-k8s-p-02': {'datacenter': 'dc04', 'environment': 'prod', 'clusters': 8}
         }
@@ -63,7 +63,7 @@ class SampleDataGenerator:
         clusters = []
         cluster_count = self.foundations[foundation]['clusters']
         for i in range(1, cluster_count + 1):
-            cluster_name = f"{datacenter}-cluster-{env_suffix}-{i:02d}"
+            cluster_name = f"cluster{i:02d}.{datacenter}-k8s-{env_suffix}-{i:02d}"
             clusters.append(cluster_name)
 
         return clusters

@@ -49,6 +49,7 @@ Generate sample data and test Excel reports:
 ## Sample Data Characteristics
 
 ### Applications (150 total)
+
 - **Foundations**: 8 foundations across 4 datacenters (DC01, DC02, DC03, DC04)
 - **Environments**: Lab, Non-Production, Production
 - **Activity Status**: ~70% active, 30% inactive applications
@@ -56,14 +57,16 @@ Generate sample data and test Excel reports:
 - **Multi-Foundation Apps**: 15 applications deployed across multiple foundations
 
 ### Realistic Patterns
+
 - **Application Naming**: Based on realistic business divisions (finance, hr, marketing, etc.)
 - **Resource Distribution**: Production apps are larger than non-production
 - **Data Quality**: 85% complete, 10% partial, 5% incomplete metadata
 - **Historical Trends**: 12 weeks of simulated migration progress
 
 ### Migration Readiness Distribution
+
 - **Ready (80-100)**: ~25% of applications
-- **Planning (60-79)**: ~30% of applications  
+- **Planning (60-79)**: ~30% of applications
 - **Complex (40-59)**: ~30% of applications
 - **High Risk (0-39)**: ~15% of applications
 
@@ -80,18 +83,21 @@ After running the test script, you can:
 ### Excel Features to Test
 
 #### Pivot Tables
+
 - Application summary by environment
 - Migration readiness analysis
 - Foundation utilization breakdown
 - Inactive application analysis
 
 #### Charts and Visualizations
+
 - Application status distribution (pie charts)
 - Migration readiness scores (bar charts)
 - Foundation comparison charts
 - Trend analysis (line charts)
 
 #### Executive Dashboard
+
 - Key performance indicators
 - Foundation-level summaries
 - Migration statistics
@@ -131,7 +137,7 @@ The sample data is compatible with the main TKGI Application Tracker scripts:
 cd ../scripts
 python3 generate-reports.py --reports-dir ../sample-data/reports
 
-# Generate Excel workbook from sample data  
+# Generate Excel workbook from sample data
 python3 generate-excel-template.py --output-dir ../sample-data/reports
 
 # Test local pipeline execution with sample data (using Docker-based testing)
@@ -142,30 +148,33 @@ make docker-test TASK=generate-reports
 
 The sample data includes:
 
-✅ **Realistic Application Patterns**: Based on common enterprise application types  
-✅ **Proper Migration Scoring**: Uses the same algorithm as the production system  
-✅ **Multi-Environment Coverage**: Lab, nonprod, and production scenarios  
-✅ **Edge Cases**: Inactive apps, multi-foundation deployments, data quality issues  
-✅ **Historical Context**: 12 weeks of trend data for timeline analysis  
-✅ **Statistical Distribution**: Balanced across all score ranges and environments  
+✅ **Realistic Application Patterns**: Based on common enterprise application types
+✅ **Proper Migration Scoring**: Uses the same algorithm as the production system
+✅ **Multi-Environment Coverage**: Lab, nonprod, and production scenarios
+✅ **Edge Cases**: Inactive apps, multi-foundation deployments, data quality issues
+✅ **Historical Context**: 12 weeks of trend data for timeline analysis
+✅ **Statistical Distribution**: Balanced across all score ranges and environments
 
 ## Troubleshooting
 
 ### Common Issues
 
 **Excel generation fails:**
+
 ```bash
 # Install required dependency
 pip3 install openpyxl
 ```
 
 **Permission errors:**
+
 ```bash
 # Ensure scripts are executable
 chmod +x *.sh *.py
 ```
 
 **Missing dependencies:**
+
 ```bash
 # Check Python availability
 python3 --version
@@ -173,6 +182,7 @@ which python3
 ```
 
 **Data validation errors:**
+
 ```bash
 # Check generated JSON files
 ls -la reports/*.json

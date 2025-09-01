@@ -46,7 +46,7 @@ The TKGI Application Tracker pipeline is designed to automatically collect, aggr
 
 ## Pipeline Structure
 
-The TKGI Application Tracker uses a **single Concourse pipeline** (`pipeline.yml`) deployed per foundation with **two jobs** for different execution scenarios.
+The TKGI Application Tracker uses a **single Concourse pipeline** (`pipelines/single-foundation-report.yml`) deployed per foundation with **two jobs** for different execution scenarios.
 
 ## Pipeline Jobs
 

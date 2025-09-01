@@ -194,7 +194,7 @@ Apply these formatting rules to highlight key insights:
 #### Application Status
 
 - **Green**: Migration Score >= 80
-- **Yellow**: Migration Score 60-79  
+- **Yellow**: Migration Score 60-79
 - **Orange**: Migration Score 40-59
 - **Red**: Migration Score < 40
 
@@ -259,7 +259,7 @@ Add slicers for dynamic filtering:
 
 ```bash
 # Error: openpyxl not available
-pip3 install openpyxl
+pip3 install -r requirements.txt
 
 # Error: CSV files not found
 ./scripts/generate-reports.py  # Generate CSV first

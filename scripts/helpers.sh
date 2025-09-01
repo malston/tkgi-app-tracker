@@ -93,8 +93,8 @@ function tkgi_get_credentials() {
     exit 1
   fi
 
-  kubectl config use-context "${cluster}" &>/dev/null
-  printf "${GREEN}%s${NOCOLOR}\n" "Switched to context \"${cluster}\"." >&2
+  kubectl config use-context "${cluster}" >/dev/null 2>&1
+  info "Switched to context \"${cluster}\"."
 }
 
 # Environment validation

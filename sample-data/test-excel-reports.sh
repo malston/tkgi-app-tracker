@@ -70,8 +70,12 @@ function check_dependencies() {
 
     # Check if openpyxl is available for Excel generation
     if ! python3 -c "import openpyxl" &> /dev/null 2>&1; then
-        warn "openpyxl not available - installing for Excel generation"
-        pip3 install openpyxl --user
+        warn "openpyxl not available - installing dependencies for Excel generation"
+        if [[ -f "../requirements.txt" ]]; then
+            pip3 install -r ../requirements.txt --user
+        else
+            pip3 install openpyxl --user
+        fi
     fi
 
     completed "Dependencies checked"

@@ -49,12 +49,12 @@ Create parameter file: `~/git/params/dc01/dc01-k8s-tkgi-app-tracker.yml`
 
 ```yaml
 # Git Configuration
-git-uri: git@github.com:your-org/tkgi-app-tracker.git
+git-uri: git@github.com:malston/tkgi-app-tracker.git
 branch: main
 git-private-key: ((git-private-key))
 
 # Params Repository
-params-uri: git@github.com:your-org/params.git
+params-uri: git@github.com:malston/params.git
 params-branch: main
 params-private-key: ((params-private-key))
 
@@ -80,12 +80,12 @@ Create parameter file: `~/git/params/dc02/dc02-k8s-tkgi-app-tracker.yml`
 
 ```yaml
 # Git Configuration
-git-uri: git@github.com:your-org/tkgi-app-tracker.git
+git-uri: git@github.com:malston/tkgi-app-tracker.git
 branch: main
 git-private-key: ((git-private-key))
 
 # Params Repository
-params-uri: git@github.com:your-org/params.git
+params-uri: git@github.com:malston/params.git
 params-branch: main
 params-private-key: ((params-private-key))
 
@@ -114,12 +114,12 @@ Create parameter files:
 
 ```yaml
 # Git Configuration
-git-uri: git@github.com:your-org/tkgi-app-tracker.git
+git-uri: git@github.com:malston/tkgi-app-tracker.git
 branch: main
 git-private-key: ((git-private-key))
 
 # Params Repository
-params-uri: git@github.com:your-org/params.git
+params-uri: git@github.com:malston/params.git
 params-branch: main
 params-private-key: ((params-private-key))
 
@@ -268,7 +268,7 @@ Check S3 buckets for generated reports:
    ```bash
    # Validate data aggregation
    python3 scripts/aggregate-data.py -d data -r reports
-   
+
    # Test report generation
    python3 scripts/generate-reports.py -r reports
    ```
@@ -291,7 +291,7 @@ Check S3 buckets for generated reports:
 
    ```bash
    # Update and redeploy pipeline
-   ./ci/fly.sh set -t environment -f foundation
+   ./ci/fly.sh set -f foundation
    ```
 
 2. **Parameter Changes**
@@ -299,7 +299,7 @@ Check S3 buckets for generated reports:
    ```bash
    # Update parameter file and redeploy
    vim ~/git/params/tkgi-app-tracker/environment/params.yml
-   ./ci/fly.sh set -t environment -f foundation
+   ./ci/fly.sh set -f foundation
    ```
 
 ### Security Considerations

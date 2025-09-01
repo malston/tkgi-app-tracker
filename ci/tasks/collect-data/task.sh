@@ -27,7 +27,7 @@ mkdir -p ../../collected-data/data
 # Run collection for the specific foundation
 echo "Collecting from foundation: ${FOUNDATION}"
 # Enable testing mode for Docker environment
-export TESTING_MODE=true
+
 ./collect-all-tkgi-clusters.sh -f "${FOUNDATION}" -o ../../collected-data/data
 
 # Validate output (back to working directory)

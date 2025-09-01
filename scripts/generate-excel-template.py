@@ -35,7 +35,7 @@ class ExcelTemplateGenerator:
         """Ensure openpyxl is available for Excel generation"""
         global EXCEL_AVAILABLE
         if not EXCEL_AVAILABLE:
-            print("Error: openpyxl required for Excel generation. Install with: pip3 install openpyxl --user")
+            print("Error: openpyxl required for Excel generation. Install with: pip3 install -r requirements.txt")
             print("Or run 'make setup' to create a virtual environment with all dependencies.")
             sys.exit(1)
 

@@ -326,7 +326,7 @@ echo "$PAYLOAD" | jq .
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "YOUR-WEBHOOK-URL" \
   -H "Content-Type: application/json" \
   -d "$PAYLOAD")
-  
+
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)
 
@@ -377,7 +377,7 @@ echo "Response Body: $BODY"
 ### Pipeline Integration Examples
 
 - **Success Notification:** `ci/tasks/notify/task.sh` (lines 15-30)
-- **Failure Handling:** `ci/pipeline.yml` (lines 81-87)
+- **Failure Handling:** `ci/pipelines/single-foundation-report.yml` (lines 81-87)
 - **Local Testing:** `scripts/run-pipeline-task.sh` (lines 265-280)
 
 ### Support

@@ -8,5 +8,8 @@ inputs:
 outputs:
 - name: generated-reports
 
+params:
+  GENERATE_EXCEL: "true"  # Set to "false" to skip Excel generation
+
 run:
   path: tkgi-app-tracker-repo/ci/tasks/generate-reports/task.sh

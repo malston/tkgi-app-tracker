@@ -1,0 +1,197 @@
+---
+# Cross-Foundation Data Aggregation Pipeline
+# Combines reports from all foundations into a single Excel workbook
+
+resources:
+  - name: s3-container-image
+    type: s3
+    icon: cloud-download-outline
+    source:
+      access_key_id: ((concourse_sgs3_access_key_id))
+      secret_access_key: ((concourse_sgs3_secret_access_key))
+      bucket: ((concourse-sgs3-bucket))
+      endpoint: ((concourse-sgs3-endpoint))
+      regexp: ((cflinux_current_image))/((cflinux_current_image))-(.*).tgz
+    tags:
+      - ((worker_tags))
+
+  - name: tkgi-app-tracker-repo
+    type: git
+    icon: github
+    source:
+      uri: ((git_uri))
+      branch: ((git_release_tag))
+      private_key: ((dtca_tkgi_eng_git_org_private_key))
+    tags:
+      - ((worker_tags))
+
+  - name: cross-foundation-excel-output
+    type: s3
+    icon: aws
+    source:
+      endpoint: ((concourse-sgs3-endpoint))
+      bucket: ((s3_bucket))
+      access_key_id: ((concourse_sgs3_access_key_id))
+      secret_access_key: ((concourse_sgs3_secret_access_key))
+      regexp: cross-foundation-reports/TKGI_App_Tracker_Analysis_(.*).xlsx
+    tags:
+      - ((worker_tags))
+
+  - name: cross-foundation-archive-output
+    type: s3
+    icon: aws
+    source:
+      endpoint: ((concourse-sgs3-endpoint))
+      bucket: ((s3_bucket))
+      access_key_id: ((concourse_sgs3_access_key_id))
+      secret_access_key: ((concourse_sgs3_secret_access_key))
+      regexp: cross-foundation-reports/cross-foundation-archive_(.*).tar.gz
+    tags:
+      - ((worker_tags))
+
+  - name: cross-foundation-schedule
+    type: time
+    icon: clock-outline
+    source:
+      interval: ((cross_foundation_schedule))
+    tags:
+      - ((worker_tags))
+
+jobs:
+  - name: aggregate-cross-foundation-data
+    plan:
+      - get: s3-container-image
+        params:
+          unpack: true
+        tags:
+          - ((worker_tags))
+      - get: tkgi-app-tracker-repo
+        tags:
+          - ((worker_tags))
+      - get: cross-foundation-schedule
+        trigger: true
+        tags:
+          - ((worker_tags))
+
+      # Step 1: Retrieve latest reports from S3
+      - task: retrieve-foundation-reports
+        file: tkgi-app-tracker-repo/ci/tasks/retrieve-foundation-reports/task.yml
+        image: s3-container-image
+        params:
+          FOUNDATIONS: ((cross_foundation_list))
+          S3_ENDPOINT: ((concourse-sgs3-endpoint))
+          S3_BUCKET: ((s3_bucket))
+          S3_ACCESS_KEY_ID: ((concourse_sgs3_access_key_id))
+          S3_SECRET_ACCESS_KEY: ((concourse_sgs3_secret_access_key))
+          MAX_AGE_DAYS: ((cross_foundation_max_age_days))
+        tags:
+          - ((worker_tags))
+
+      # Step 2: Consolidate data from all foundations
+      - task: consolidate-foundation-data
+        image: s3-container-image
+        config:
+          platform: linux
+          inputs:
+            - name: tkgi-app-tracker-repo
+            - name: foundation-reports
+          outputs:
+            - name: consolidated-data
+          run:
+            path: bash
+            args:
+              - -c
+              - |
+                set -o errexit
+                set -o pipefail
+                set -o nounset
+
+                # Install required packages from requirements.txt
+                cd tkgi-app-tracker-repo
+                echo "Installing Python dependencies..."
+                if ! pip3 install -r requirements.txt; then
+                  echo "ERROR: Failed to install Python packages from requirements.txt"
+                  echo "This is required for data consolidation. Pipeline cannot continue."
+                  exit 1
+                fi
+
+                # Verify critical packages are available
+                echo "Verifying Python dependencies..."
+                python3 -c "
+                import sys
+                try:
+                    import pandas
+                    print('✓ All required Python packages are available')
+                except ImportError as e:
+                    print(f'✗ Missing required Python package: {e}')
+                    sys.exit(1)
+                " || {
+                  echo "ERROR: Python dependency verification failed"
+                  exit 1
+                }
+
+                # Run consolidation script
+                echo "Running consolidation script..."
+                python3 scripts/aggregate-cross-foundation.py \
+                  ../foundation-reports/data \
+                  -o ../consolidated-data
+        tags:
+          - ((worker_tags))
+
+      # Step 3: Generate cross-foundation Excel workbook
+      - task: generate-cross-foundation-excel
+        file: tkgi-app-tracker-repo/ci/tasks/generate-cross-foundation-excel/task.yml
+        image: s3-container-image
+        params:
+          INCLUDE_CHARTS: ((cross_foundation_include_charts))
+          WORKBOOK_NAME: "" # Use default timestamped name
+        tags:
+          - ((worker_tags))
+
+      # Step 4: Upload Excel workbook to S3
+      - put: cross-foundation-excel-output
+        params:
+          file: cross-foundation-excel/TKGI_App_Tracker_Analysis_*.xlsx
+          content_type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+        tags:
+          - ((worker_tags))
+
+      # Step 5: Archive consolidated CSV data
+      - task: archive-consolidated-data
+        image: s3-container-image
+        config:
+          platform: linux
+          inputs:
+            - name: consolidated-data
+            - name: cross-foundation-excel
+          outputs:
+            - name: archived-data
+          run:
+            path: sh
+            args:
+              - -c
+              - |
+                # Create archive with timestamp
+                TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                ARCHIVE_NAME="cross-foundation-archive_${TIMESTAMP}.tar.gz"
+
+                # Create archive directory
+                mkdir -p archived-data
+
+                # Archive consolidated CSV files and Excel workbook
+                tar -czf "archived-data/${ARCHIVE_NAME}" \
+                  -C consolidated-data . \
+                  -C ../cross-foundation-excel .
+
+                echo "Created archive: ${ARCHIVE_NAME}"
+                ls -la archived-data/
+        tags:
+          - ((worker_tags))
+
+      # Step 6: Upload archive to S3
+      - put: cross-foundation-archive-output
+        params:
+          file: archived-data/cross-foundation-archive_*.tar.gz
+          content_type: application/gzip
+        tags:
+          - ((worker_tags))

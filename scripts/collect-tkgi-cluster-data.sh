@@ -72,17 +72,25 @@ mkdir -p "${DATA_DIR}"
 function setup_foundation_env() {
     local foundation=$1
 
-    # These would typically be loaded from Vault or environment
-    # For now, using environment variables with foundation prefix
-    export OM_TARGET="${OM_TARGET:-${foundation^^}_OM_TARGET}"
-    export OM_CLIENT_ID="${OM_CLIENT_ID:-${foundation^^}_OM_CLIENT_ID}"
-    export OM_CLIENT_SECRET="${OM_CLIENT_SECRET:-${foundation^^}_OM_CLIENT_SECRET}"
-    export TKGI_API_ENDPOINT="${TKGI_API_ENDPOINT:-${foundation^^}_TKGI_API_ENDPOINT}"
+    # Set up environment variables with foundation-specific fallback
+    # Logic: Use generic variable if set, otherwise use foundation-specific variable
+    # Example: For foundation "dc01", use OM_TARGET if set, else use DC01_OM_TARGET
 
-    # Validate required environment variables
-    if [[ -z "${!OM_TARGET}" ]] || [[ -z "${!OM_CLIENT_ID}" ]] || [[ -z "${!OM_CLIENT_SECRET}" ]] || [[ -z "${!TKGI_API_ENDPOINT}" ]]; then
+    # Convert foundation name to uppercase for variable names (dc01 -> DC01)
+    local foundation_upper="${foundation^^}"
+
+    # Set environment variables with fallback pattern:
+    # If generic variable exists, use it; otherwise use foundation-specific variable
+    export OM_TARGET="${OM_TARGET:-${foundation_upper}_OM_TARGET}"
+    export OM_CLIENT_ID="${OM_CLIENT_ID:-${foundation_upper}_OM_CLIENT_ID}"
+    export OM_CLIENT_SECRET="${OM_CLIENT_SECRET:-${foundation_upper}_OM_CLIENT_SECRET}"
+    export TKGI_API_ENDPOINT="${TKGI_API_ENDPOINT:-${foundation_upper}_TKGI_API_ENDPOINT}"
+
+    # Validate that all required credentials are available
+    if [[ -z "${OM_TARGET}" ]] || [[ -z "${OM_CLIENT_ID}" ]] || [[ -z "${OM_CLIENT_SECRET}" ]] || [[ -z "${TKGI_API_ENDPOINT}" ]]; then
         error "Missing required environment variables for foundation ${foundation}"
-        error "Please set: ${foundation^^}_OM_TARGET, ${foundation^^}_OM_CLIENT_ID, ${foundation^^}_OM_CLIENT_SECRET, ${foundation^^}_TKGI_API_ENDPOINT"
+        error "Please set either generic variables (OM_TARGET, OM_CLIENT_ID, etc.) or foundation-specific ones:"
+        error "  ${foundation_upper}_OM_TARGET, ${foundation_upper}_OM_CLIENT_ID, ${foundation_upper}_OM_CLIENT_SECRET, ${foundation_upper}_TKGI_API_ENDPOINT"
         exit 1
     fi
 }
@@ -98,7 +106,7 @@ function authenticate_tkgi() {
     setup_foundation_env "${foundation}"
 
     # Use the helper function to login to TKGI and get cluster credentials
-    if ! tkgi_login "${cluster}" "${!TKGI_API_ENDPOINT}" "${!OM_TARGET}" "${!OM_CLIENT_ID}" "${!OM_CLIENT_SECRET}"; then
+    if ! tkgi_login "${cluster}" "${TKGI_API_ENDPOINT}" "${OM_TARGET}" "${OM_CLIENT_ID}" "${OM_CLIENT_SECRET}"; then
         error "Failed to authenticate with TKGI cluster: ${cluster}"
         return 1
     fi
@@ -162,32 +170,44 @@ function collect_namespace_data() {
 
     # Get deployment information
     local deployments
-    deployments=$(kubectl get deployments -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, replicas: .spec.replicas, ready: .status.readyReplicas, updated: .status.updatedReplicas, lastUpdate: .metadata.annotations."deployment.kubernetes.io/revision" // "unknown"}]')
+    if ! deployments=$(kubectl get deployments -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, replicas: .spec.replicas, ready: .status.readyReplicas, updated: .status.updatedReplicas, lastUpdate: (.metadata.annotations["deployment.kubernetes.io/revision"] // "unknown")}]' 2>/dev/null); then
+        warn "Failed to get deployment info for namespace $ns"
+        deployments="[]"
+    fi
 
     local deployment_count
-    deployment_count=$(echo "$deployments" | jq 'length')
+    deployment_count=$(echo "$deployments" | jq 'length' 2>/dev/null || echo "0")
 
     # Get statefulsets information
     local statefulsets
-    statefulsets=$(kubectl get statefulsets -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, replicas: .spec.replicas, ready: .status.readyReplicas}]')
+    if ! statefulsets=$(kubectl get statefulsets -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, replicas: .spec.replicas, ready: .status.readyReplicas}]' 2>/dev/null); then
+        warn "Failed to get statefulset info for namespace $ns"
+        statefulsets="[]"
+    fi
 
     local statefulset_count
-    statefulset_count=$(echo "$statefulsets" | jq 'length')
+    statefulset_count=$(echo "$statefulsets" | jq 'length' 2>/dev/null || echo "0")
 
     # Get last pod creation/restart time (indicates activity)
     local last_activity
-    last_activity=$(kubectl get pods -n "$ns" -o json 2>/dev/null | jq -r '[.items[].status.startTime] | max // "unknown"')
+    if ! last_activity=$(kubectl get pods -n "$ns" -o json 2>/dev/null | jq -r '[.items[].status.startTime] | max // "unknown"' 2>/dev/null); then
+        last_activity="unknown"
+    fi
 
     # Get resource quota if exists
     local resource_quota
-    resource_quota=$(kubectl get resourcequota -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, hard: .status.hard, used: .status.used}]')
+    if ! resource_quota=$(kubectl get resourcequota -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, hard: .status.hard, used: .status.used}]' 2>/dev/null); then
+        resource_quota="[]"
+    fi
 
     # Get services
     local services
-    services=$(kubectl get services -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, type: .spec.type, ports: [.spec.ports[].port]}]')
+    if ! services=$(kubectl get services -n "$ns" -o json 2>/dev/null | jq -c '[.items[] | {name: .metadata.name, type: .spec.type, ports: [.spec.ports[].port]}]' 2>/dev/null); then
+        services="[]"
+    fi
 
     local service_count
-    service_count=$(echo "$services" | jq 'length')
+    service_count=$(echo "$services" | jq 'length' 2>/dev/null || echo "0")
 
     # Create namespace data object
     cat <<EOF
@@ -229,22 +249,41 @@ info "Starting namespace data collection..."
 # Initialize JSON array
 echo "[" > "$OUTPUT_FILE"
 
-# Get all namespaces
-namespaces=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}')
-mapfile -t namespace_array <<< "$namespaces"
-total_namespaces=${#namespace_array[@]}
+# Get all namespaces (redirect stderr to avoid context switch messages)
+all_namespaces=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+# Convert space-separated list to array
+read -r -a all_namespace_array <<< "$all_namespaces"
+total_all_namespaces=${#all_namespace_array[@]}
 
-info "Found ${total_namespaces} namespaces to process"
+# Filter out system namespaces for processing (but we still collect them for completeness)
+namespace_array=()
+system_count=0
+for ns in "${all_namespace_array[@]}"; do
+    if is_system_namespace "$ns"; then
+        system_count=$((system_count + 1))
+    fi
+    namespace_array+=("$ns")  # Still include all namespaces in processing
+done
+
+app_namespaces=$((total_all_namespaces - system_count))
+
+info "Found ${total_all_namespaces} total namespaces (${app_namespaces} application, ${system_count} system)"
 
 # Process each namespace
 for i in "${!namespace_array[@]}"; do
     ns="${namespace_array[$i]}"
-    echo "Processing namespace $((i+1))/${total_namespaces}: $ns"
+
+    # Show namespace type in processing message
+    if is_system_namespace "$ns"; then
+        info "Processing namespace $((i+1))/${total_all_namespaces}: $ns (system)"
+    else
+        info "Processing namespace $((i+1))/${total_all_namespaces}: $ns (application)"
+    fi
 
     namespace_data=$(collect_namespace_data "$ns")
 
     # Add comma separator except for last item
-    if [[ $i -lt $((total_namespaces - 1)) ]]; then
+    if [[ $i -lt $((total_all_namespaces - 1)) ]]; then
         echo "${namespace_data}," >> "$OUTPUT_FILE"
     else
         echo "${namespace_data}" >> "$OUTPUT_FILE"
@@ -267,7 +306,7 @@ jq --arg env "$environment" '[.[] | . + {environment: $env}]' "$OUTPUT_FILE" > "
 if jq empty "$OUTPUT_FILE" 2>/dev/null; then
     completed "Data collection completed successfully"
     completed "Output saved to: $OUTPUT_FILE"
-    info "Total namespaces processed: ${total_namespaces}"
+    info "Total namespaces processed: ${total_all_namespaces}"
 
     # Generate quick statistics
     app_namespaces=$(jq '[.[] | select(.is_system == false)] | length' "$OUTPUT_FILE")

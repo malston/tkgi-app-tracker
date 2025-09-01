@@ -2,7 +2,7 @@
 
 ## Single Pipeline with Multiple Jobs
 
-Each foundation deploys **one Concourse pipeline** (`pipeline.yml`) containing **two jobs** and a **manual-trigger resource** for on-demand execution.
+Each foundation deploys **one Concourse pipeline** (`pipelines/single-foundation-report.yml`) containing **two jobs** and a **manual-trigger resource** for on-demand execution.
 
 ## Complete Pipeline Flow
 

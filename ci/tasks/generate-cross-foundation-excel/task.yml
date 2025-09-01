@@ -1,0 +1,16 @@
+---
+platform: linux
+
+inputs:
+- name: tkgi-app-tracker-repo
+- name: consolidated-data
+
+outputs:
+- name: cross-foundation-excel
+
+params:
+  INCLUDE_CHARTS: "true"      # Include charts and visualizations
+  WORKBOOK_NAME: ""           # Optional custom name, defaults to TKGI_App_Tracker_Analysis_{timestamp}.xlsx
+
+run:
+  path: tkgi-app-tracker-repo/ci/tasks/generate-cross-foundation-excel/task.sh

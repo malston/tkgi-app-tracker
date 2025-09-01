@@ -2,23 +2,25 @@
 platform: linux
 
 inputs:
-- name: tkgi-app-tracker-repo
-- name: params
+  - name: tkgi-app-tracker-repo
+  - name: config-repo
 
 outputs:
-- name: collected-data
+  - name: collected-data
 
 params:
+  CONFIG_REPO: ../../config-repo
   # Foundation Configuration
-  FOUNDATION: ((foundation))
-  DATACENTER: ((datacenter))
-  ENVIRONMENT: ((environment))
-  
+  FOUNDATION:
+  DATACENTER:
+  ENVIRONMENT:
+
   # TKGI/Ops Manager Configuration
-  OM_TARGET: ((om_target))
-  OM_CLIENT_ID: ((om_client_id))
-  OM_CLIENT_SECRET: ((om_client_secret))
-  TKGI_API_ENDPOINT: ((tkgi_api_endpoint))
+  OM_TARGET:
+  OM_CLIENT_ID:
+  OM_CLIENT_SECRET:
+  TKGI_API_ENDPOINT:
+  TESTING_MODE: false
 
 run:
   path: tkgi-app-tracker-repo/ci/tasks/collect-data/task.sh

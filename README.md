@@ -75,6 +75,7 @@ The TKGI Application Tracker uses a foundation-specific Concourse CI/CD pipeline
 - **Cluster Report**: Utilization and application distribution by cluster
 - **Executive Summary**: High-level metrics for management
 - **Migration Priority**: Ranked list of migration candidates
+- **Cross-Foundation Aggregation**: Combine all foundation reports into a single Excel workbook
 
 ### Data Management
 
@@ -268,7 +269,9 @@ tkgi-app-tracker/
 │   ├── foundation-utils.sh               # Foundation parsing utilities
 │   └── helpers.sh                        # Common helper functions
 ├── ci/                          # Concourse pipeline configuration
-│   ├── pipeline.yml                     # Concourse pipeline configuration
+│   ├── pipelines/
+│   │   ├── single-foundation-report.yml                 # Main Concourse pipeline configuration
+│   │   └── cross-foundation-report.yml  # Cross-foundation pipeline
 │   ├── fly.sh                           # Pipeline deployment script
 │   └── tasks/                           # Individual pipeline tasks (ns-mgmt convention)
 │       ├── collect-data/                # Data collection task
@@ -308,7 +311,7 @@ kubectl get namespaces
 # Check Concourse login
 fly -t {foundation} status
 # Validate pipeline YAML
-fly validate-pipeline -c ci/pipeline.yml
+fly validate-pipeline -c ci/pipelines/single-foundation-report.yml
 ```
 
 **Data collection errors:**
@@ -343,6 +346,24 @@ jq empty data/cluster_data_*.json
   - Deployment architecture across datacenters
 
 - **[Deployment Guide](docs/deployment-guide.md)** - Step-by-step deployment instructions for all environments
+
+### Analysis and Reporting Documentation
+
+- **[Cross-Foundation Aggregation](docs/cross-foundation-README.md)** - Combine reports from multiple foundations into a single Excel workbook:
+  - Automated collection from S3 storage
+  - Cross-foundation data consolidation
+  - Unified Excel workbook generation
+  - Enterprise-wide visibility
+
+- **[Inactivity Detection Guide](docs/inactivity-detection.md)** - Detailed explanation of how applications are determined to be active or inactive:
+  - Data collection methodology (pod start times)
+  - 30-day activity window calculation
+  - Limitations and edge cases
+  - Future enhancement possibilities
+
+- **[Migration Readiness Guide](docs/migration-readiness-guide.md)** - Understanding application migration scores
+
+- **[Excel Report Guide](docs/excel-report-guide.md)** - How to use generated Excel reports for analysis
 
 ### Key Pipeline Features
 

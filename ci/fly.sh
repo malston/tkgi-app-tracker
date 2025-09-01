@@ -23,44 +23,58 @@ source "${SCRIPT_DIR}/../scripts/foundation-utils.sh"
 
 # Initialize default values
 PIPELINE="app-tracker"
-GITHUB_ORG="your-org"
-GIT_RELEASE_BRANCH="main"
+GITHUB_ORG="malston"
+GIT_RELEASE_BRANCH="master"
 CONFIG_GIT_BRANCH="master"
-VERSION_FILE=version
 DRY_RUN=false
-VERBOSE=false
 ENVIRONMENT=""
+TEAMS_WEBHOOK_URL=""
+S3_BUCKET="reports"
 TIMER_DURATION="3h"
 COMMAND="set"
 
 # Function to display usage
 function usage() {
-    echo "Usage: $0 [COMMAND] [OPTIONS]"
-    echo ""
-    echo "Commands:"
-    echo "  set         Deploy the pipeline (default)"
-    echo "  unpause     Deploy and unpause the pipeline"
-    echo "  destroy     Destroy the pipeline"
-    echo "  validate    Validate pipeline YAML"
-    echo ""
-    echo "Options:"
-    echo "  -f FOUNDATION   Foundation name (e.g., dc01-k8s-n-01, dc02-k8s-n-01)"
-    echo "  -t TARGET       Concourse target (defaults to foundation name)"
-    echo "  -b BRANCH       Git branch (default: main)"
-    echo "  -v              Verbose output"
-    echo "  --dry-run       Show what would be done without executing"
-    echo "  -h, --help      Display this help message"
-    echo ""
-    echo "Foundation Format: {datacenter}-{type}-{environment}-{instance}"
-    echo "  Examples: dc01-k8s-n-01, dc02-k8s-n-01, dc03-k8s-p-01"
-    echo ""
-    echo "Parameter Files (loaded in order of precedence):"
-    echo "  Global: ../params/global.yml, ../params/k8s-global.yml"
-    echo "  Datacenter: ../params/{datacenter}/{datacenter}.yml"
-    echo "  Datacenter Type: ../params/{datacenter}/{datacenter}-{type}.yml"
-    echo "  Foundation: ../params/{datacenter}/{foundation}.yml"
-    echo "  Pipeline: ../params/{datacenter}/{datacenter}-{type}-tkgi-app-tracker.yml"
-    echo "  Example: ../params/dc01/dc01-k8s-tkgi-app-tracker.yml"
+    cat << EOF
+Usage: $0 [COMMAND] [OPTIONS]
+
+Commands:
+  set               Deploy the pipeline (default)
+  unpause           Deploy and unpause the pipeline
+  destroy           Destroy the pipeline
+  validate          Validate pipeline YAML
+  cross-foundation  Deploy cross-foundation reporting pipeline
+
+Options:
+  -f FOUNDATION   Foundation name (e.g., dc01-k8s-n-01, dc02-k8s-n-01)
+                  Not required for cross-foundation command
+  -t TARGET       Concourse target (defaults to foundation name)
+  -b BRANCH       Git branch (default: $GIT_RELEASE_BRANCH)
+  -v              Verbose output
+  --dry-run       Show what would be done without executing
+  -h, --help      Display this help message
+
+Foundation Format: {datacenter}-{type}-{environment}-{instance}
+  Examples: dc01-k8s-n-01, dc02-k8s-n-01, dc03-k8s-n-02
+
+Examples:
+  $0 set -f dc01-k8s-n-01                      Deploy pipeline for dc01 foundation
+  $0 unpause -f dc02-k8s-n-01               Deploy and unpause pipeline for ILAB
+  $0 cross-foundation                         Deploy cross-foundation aggregation pipeline
+  $0 cross-foundation -t tkgi-tkgi-reporting  Deploy cross-foundation with specific target
+
+Parameter Files (loaded in order of precedence):
+  Global: $HOME/git/params/global.yml, $HOME/git/params/k8s-global.yml
+  Datacenter: $HOME/git/params/{datacenter}/{datacenter}.yml
+  Datacenter Type: $HOME/git/params/{datacenter}/{datacenter}-{type}.yml
+  Foundation: $HOME/git/params/{datacenter}/{foundation}.yml
+  Pipeline: $HOME/git/params/{datacenter}/{datacenter}-{type}-tkgi-app-tracker.yml
+  Example: $HOME/git/params/dc01/dc01-k8s-tkgi-app-tracker.yml
+
+Cross-Foundation Parameters:
+  Uses same global params: $HOME/git/params/global.yml, $HOME/git/params/k8s-global.yml
+  Plus specific settings: $HOME/git/params/tkgi-app-tracker-cross-foundation.yml
+EOF
     exit 1
 }
 
@@ -82,7 +96,7 @@ function check_prerequisites() {
     if ! validate_foundation_format "${FOUNDATION}"; then
         echo "Error: Invalid foundation format: ${FOUNDATION}"
         echo "Expected format: {datacenter}-{type}-{environment}-{instance}"
-        echo "Example: dc01-k8s-n-01, dc02-k8s-n-01, dc03-k8s-p-01"
+        echo "Example: dc01-k8s-n-01, dc02-k8s-n-01, dc03-k8s-n-02"
         exit 1
     fi
 }
@@ -184,11 +198,9 @@ git_uri: ${GIT_URI}
 config_git_uri: ${CONFIG_GIT_URI}
 config_git_branch: ${CONFIG_GIT_BRANCH}
 git_release_tag: ${GIT_RELEASE_BRANCH}
-version_file: ${VERSION_FILE}
 
 # S3 Configuration for Reports
-s3_bucket: tkgi-app-tracker-reports-${ENVIRONMENT}
-s3_region: us-east-1
+s3_bucket: reports
 s3_access_key_id: ((s3-access-key-id))
 s3_secret_access_key: ((s3-secret-access-key))
 
@@ -205,7 +217,6 @@ teams_webhook_url: ((teams-webhook-url))
 # Pipeline Configuration
 timer_duration: ${TIMER_DURATION}
 dry_run: ${DRY_RUN}
-verbose: ${VERBOSE}
 
 # Foundation Configuration
 foundation: ${FOUNDATION}
@@ -229,45 +240,126 @@ EOF
 
 # Function to set pipeline
 function set_pipeline() {
-    local pipeline_name="tkgi-${PIPELINE}-${FOUNDATION}"
-    local pipeline_file="${SCRIPT_DIR}/pipeline.yml"
+    local pipeline_name
+    local pipeline_file
+    local vars_files_array
+
+    # Check if this is a cross-foundation pipeline call
+    if [[ "${COMMAND}" == "cross-foundation" ]]; then
+        pipeline_name="tkgi-app-tracker-cross-foundation"
+        pipeline_file="${SCRIPT_DIR}/pipelines/cross-foundation-report.yml"
+
+        # Load parameter files using the standard function (global params only for cross-foundation)
+        IFS=" " read -r -a vars_files_array <<<"$(load_params_files "${REPO_ROOT}" "" "" "" "")"
+
+        # Add cross-foundation specific parameters
+        local params_path="${REPO_ROOT}/../params"
+        if [[ -f "${params_path}/tkgi-app-tracker-cross-foundation.yml" ]]; then
+            vars_files_array+=("-l" "${params_path}/tkgi-app-tracker-cross-foundation.yml")
+        else
+            # Create minimal cross-foundation params with only the specific values needed
+            local default_params_file="${params_path}/tkgi-app-tracker-cross-foundation.yml"
+            mkdir -p "${params_path}"
+
+            cat > "${default_params_file}" <<'EOF'
+# Cross-Foundation Specific Parameters
+# These supplement the standard global params
+
+# Cross-foundation specific settings
+cross_foundation_list: "dc01,dc02,dc03,dc04" # Comma-separated list of foundations to aggregate
+cross_foundation_schedule: "24h"             # How often to run aggregation (daily)
+cross_foundation_max_age_days: "7"           # Only include reports newer than this
+cross_foundation_include_charts: "true"      # Include charts in Excel workbook
+EOF
+            echo "Created cross-foundation params at: ${default_params_file}"
+            echo "This file supplements your existing global params (global.yml, k8s-global.yml)"
+            vars_files_array+=("-l" "${default_params_file}")
+        fi
+    else
+        # Regular foundation-specific pipeline
+        pipeline_name="tkgi-${PIPELINE}-${FOUNDATION}"
+        pipeline_file="${SCRIPT_DIR}/pipelines/single-foundation-report.yml"
+
+        # Load parameter files using gatekeeper pattern
+        IFS=" " read -r -a vars_files_array <<<"$(load_params_files "${REPO_ROOT}" "${DATACENTER}" "${DATACENTER_TYPE}" "${FOUNDATION}" "tkgi-app-tracker")"
+    fi
 
     if [ ! -f "${pipeline_file}" ]; then
         echo "Error: Pipeline file not found: ${pipeline_file}"
         exit 1
     fi
 
-    # Load parameter files using gatekeeper pattern
-    local vars_files_array
-    IFS=" " read -r -a vars_files_array <<<"$(load_params_files "${REPO_ROOT}" "${DATACENTER}" "${DATACENTER_TYPE}" "${FOUNDATION}" "tkgi-app-tracker")"
-
-    echo "Deploying pipeline: ${pipeline_name}"
-    echo "Foundation: ${FOUNDATION} (${ENVIRONMENT})"
-    echo "Pipeline file: ${pipeline_file}"
-    echo "Parameter files: ${vars_files_array[*]}"
-    echo "Target: ${TARGET}"
+    # Display deployment information
+    if [[ "${COMMAND}" == "cross-foundation" ]]; then
+        echo "Deploying cross-foundation aggregation pipeline..."
+        echo "  Target: ${TARGET}"
+        echo "  Pipeline: ${pipeline_name}"
+        echo "  Pipeline file: ${pipeline_file}"
+        echo "  Parameter files: ${vars_files_array[*]}"
+        echo ""
+    else
+        echo "Deploying pipeline: ${pipeline_name}"
+        echo "  Foundation: ${FOUNDATION} (${ENVIRONMENT})"
+        echo "  Target: ${TARGET}"
+        echo "  Pipeline file: ${pipeline_file}"
+        echo "  Parameter files: ${vars_files_array[*]}"
+    fi
 
     if [[ "${DRY_RUN}" == "true" ]]; then
         echo "[DRY RUN] Would execute:"
-        echo "fly -t ${TARGET} set-pipeline -p ${pipeline_name} -c ${pipeline_file} ${vars_files_array[*]} --non-interactive"
+        echo "fly -t ${TARGET} set-pipeline -p ${pipeline_name} -c ${pipeline_file} ${vars_files_array[*]}"
         return 0
     fi
 
-    if fly -t "${TARGET}" set-pipeline \
-          -p "${pipeline_name}" \
-          -c "${pipeline_file}" \
-          "${vars_files_array[@]}" \
-          --non-interactive; then
-        echo "Pipeline deployed successfully!"
-        echo ""
-        echo "To unpause the pipeline, run:"
-        echo "  fly -t ${TARGET} unpause-pipeline -p ${pipeline_name}"
-        echo ""
-        echo "To trigger a manual run:"
-        echo "  fly -t ${TARGET} trigger-job -j ${pipeline_name}/collect-and-report"
+    # Deploy the pipeline with appropriate variables
+    if [[ "${COMMAND}" == "cross-foundation" ]]; then
+        if fly -t "${TARGET}" set-pipeline \
+              -p "${pipeline_name}" \
+              -c "${pipeline_file}" \
+              "${vars_files_array[@]}" \
+              -v git_uri="${GIT_URI:-git@github.com:your-org/tkgi-app-tracker.git}" \
+              -v git_release_tag="${GIT_RELEASE_BRANCH:-master}" \
+              -v s3_bucket="${S3_BUCKET:-reports}"; then
+            echo ""
+            echo "Pipeline deployed successfully!"
+            echo ""
+            echo "To unpause the pipeline, run:"
+            echo "  fly -t ${TARGET} unpause-pipeline -p ${pipeline_name}"
+            echo ""
+            echo "To trigger the pipeline manually, run:"
+            echo "  fly -t ${TARGET} trigger-job -j ${pipeline_name}/aggregate-cross-foundation-data"
+            echo ""
+            echo "To view the pipeline in the web UI:"
+            echo "  fly -t ${TARGET} pipelines | grep ${pipeline_name}"
+        else
+            echo "Error: Failed to deploy cross-foundation pipeline"
+            exit 1
+        fi
     else
-        echo "Error: Failed to deploy pipeline"
-        exit 1
+        if fly -t "${TARGET}" set-pipeline \
+              -p "${pipeline_name}" \
+              -c "${pipeline_file}" \
+              "${vars_files_array[@]}" \
+              -v foundation="$FOUNDATION" \
+              -v datacenter="$DATACENTER" \
+              -v environment="$ENVIRONMENT" \
+              -v git_uri="$GIT_URI" \
+              -v git_release_tag="$GIT_RELEASE_BRANCH" \
+              -v config_git_uri="$CONFIG_GIT_URI" \
+              -v config_git_branch="$CONFIG_GIT_BRANCH" \
+              -v s3_bucket="$S3_BUCKET" \
+              -v teams_webhook_url="$TEAMS_WEBHOOK_URL"; then
+            echo "Pipeline deployed successfully!"
+            echo ""
+            echo "To unpause the pipeline, run:"
+            echo "  fly -t ${TARGET} unpause-pipeline -p ${pipeline_name}"
+            echo ""
+            echo "To trigger a manual run:"
+            echo "  fly -t ${TARGET} trigger-job -j ${pipeline_name}/collect-and-report"
+        else
+            echo "Error: Failed to deploy pipeline"
+            exit 1
+        fi
     fi
 }
 
@@ -286,7 +378,7 @@ function unpause_pipeline() {
         return 0
     fi
 
-    
+
     if fly -t "${TARGET}" unpause-pipeline -p "${pipeline_name}"; then
         echo "Pipeline unpaused successfully!"
     else
@@ -303,13 +395,12 @@ function destroy_pipeline() {
 
     if [[ "${DRY_RUN}" == "true" ]]; then
         echo "[DRY RUN] Would execute:"
-        echo "fly -t ${TARGET} destroy-pipeline -p ${pipeline_name} --non-interactive"
+        echo "fly -t ${TARGET} destroy-pipeline -p ${pipeline_name}"
         return 0
     fi
 
     if fly -t "${TARGET}" destroy-pipeline \
-          -p "${pipeline_name}" \
-          --non-interactive; then
+          -p "${pipeline_name}"; then
         echo "Pipeline destroyed successfully!"
     else
         echo "Error: Failed to destroy pipeline"
@@ -319,7 +410,7 @@ function destroy_pipeline() {
 
 # Function to validate pipeline
 function validate_pipeline() {
-    local pipeline_file="${SCRIPT_DIR}/pipeline.yml"
+    local pipeline_file="${SCRIPT_DIR}/pipelines/single-foundation-report.yml"
 
     if [ ! -f "${pipeline_file}" ]; then
         echo "Error: Pipeline file not found: ${pipeline_file}"
@@ -345,7 +436,7 @@ function validate_pipeline() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         # Commands
-        set|unpause|destroy|validate)
+        set|unpause|destroy|validate|cross-foundation)
             COMMAND="$1"
             shift
             ;;
@@ -374,10 +465,6 @@ while [[ $# -gt 0 ]]; do
             GIT_RELEASE_BRANCH="$2"
             shift 2
             ;;
-        -v|--verbose)
-            VERBOSE=true
-            shift
-            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -392,7 +479,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate required parameters
+# Handle cross-foundation command separately (doesn't require foundation)
+if [[ "${COMMAND}" == "cross-foundation" ]]; then
+    # Set default target if not provided
+    if [[ -z "${TARGET}" ]]; then
+        TARGET="tkgi-reporting"  # Default target for cross-foundation
+    fi
+
+    # Check if fly is logged in
+    if ! fly -t "${TARGET}" status &> /dev/null; then
+        echo "Error: Not logged in to target '${TARGET}'. Please run: fly -t ${TARGET} login"
+        exit 1
+    fi
+
+    # Execute cross-foundation pipeline deployment
+    set_pipeline
+    exit 0
+fi
+
+# Validate required parameters for foundation-specific commands
 if [[ -z "${FOUNDATION}" ]]; then
     echo "Error: Foundation not specified. Use -f or --foundation option."
     usage
@@ -408,11 +513,6 @@ determine_environment
 
 # Check prerequisites
 check_prerequisites
-
-# Enable verbose output if requested
-if [[ "${VERBOSE}" == "true" ]]; then
-    set -x
-fi
 
 # Execute the requested command
 case "${COMMAND}" in

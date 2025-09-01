@@ -2,12 +2,6 @@
 # TKGI Application Tracker Pipeline - Single Foundation
 # This pipeline template is used for individual foundations following team-based deployment
 
-resource_types:
-- name: time
-  type: docker-image
-  source:
-    repository: concourse/time-resource
-
 resources:
 - name: s3-container-image
   type: s3
@@ -18,42 +12,51 @@ resources:
     bucket: ((concourse-s3-bucket))
     endpoint: ((concourse-s3-endpoint))
     regexp: ((cflinux_current_image))/((cflinux_current_image))-(.*).tgz
+  tags:
+  - ((worker_tags))
 
 - name: tkgi-app-tracker-repo
   type: git
+  icon: github
   source:
     uri: ((git_uri))
     branch: ((git_release_tag))
-    private_key: ((git-private-key))
+    private_key: ((dtca_tkgi_eng_git_org_private_key))
+  tags:
+  - ((worker_tags))
 
 - name: config-repo
   type: git
+  icon: github
   source:
     uri: ((config_git_uri))
     branch: ((config_git_branch))
-    private_key: ((git-private-key))
+    private_key: ((dtca_tkgi_eng_git_org_private_key))
+  tags:
+  - ((worker_tags))
 
 - name: weekly-timer
   type: time
+  icon: clock-outline
   source:
     start: 6:00 AM
-    stop: 7:00 AM
-    days: [Monday]
+    stop: 5:00 PM
+    days: [Thursday]
     location: America/New_York
-
-- name: manual-trigger
-  type: time
-  source:
-    interval: 70000h # Large interval to prevent automatic triggering
+  tags:
+  - ((worker_tags))
 
 - name: app-tracker-reports
   type: s3
+  icon: package
   source:
+    endpoint: ((concourse-sgs3-endpoint))
     bucket: ((s3_bucket))
-    regexp: reports/((foundation))/weekly-report-(.*).tar.gz
-    access_key_id: ((s3_access_key_id))
-    secret_access_key: ((s3_secret_access_key))
-    region_name: ((s3_region))
+    regexp: app-tracker-reports/((foundation))/weekly-report-(.*).tar.gz
+    access_key_id: ((concourse_sgs3_access_key_id))
+    secret_access_key: ((concourse_sgs3_secret_access_key))
+  tags:
+  - ((worker_tags))
 
 jobs:
 - name: collect-and-report
@@ -62,10 +65,18 @@ jobs:
     - get: s3-container-image
       params:
         unpack: true
+      tags:
+      - ((worker_tags))
     - get: tkgi-app-tracker-repo
+      tags:
+      - ((worker_tags))
     - get: config-repo
+      tags:
+      - ((worker_tags))
     - get: weekly-timer
       trigger: true
+      tags:
+      - ((worker_tags))
 
   - task: collect-foundation-data
     file: tkgi-app-tracker-repo/ci/tasks/collect-data/task.yml
@@ -74,10 +85,13 @@ jobs:
       FOUNDATION: ((foundation))
       DATACENTER: ((datacenter))
       ENVIRONMENT: ((environment))
-      OM_TARGET: ((om_target))
-      OM_CLIENT_ID: ((om_client_id))
-      OM_CLIENT_SECRET: ((om_client_secret))
-      TKGI_API_ENDPOINT: ((tkgi_api_endpoint))
+      OM_TARGET: ((opsman_domain_or_ip_address))
+      OM_CLIENT_ID: ((opsman_client_id))
+      OM_CLIENT_SECRET: ((opsman_client_secret))
+      TKGI_API_ENDPOINT: ((pks_api_url))
+      TESTING_MODE: ((testing_mode))
+    tags:
+    - ((worker_tags))
     on_failure:
       task: notify-failure
       file: tkgi-app-tracker-repo/ci/tasks/notify/task.yml
@@ -86,10 +100,14 @@ jobs:
         MESSAGE: "Failed to collect TKGI cluster data from foundation ((foundation))"
         NOTIFICATION_TYPE: "error"
         WEBHOOK_URL: ((teams_webhook_url))
+      tags:
+      - ((worker_tags))
 
   - task: aggregate-data
     file: tkgi-app-tracker-repo/ci/tasks/aggregate-data/task.yml
     image: s3-container-image
+    tags:
+    - ((worker_tags))
     on_failure:
       task: notify-failure
       file: tkgi-app-tracker-repo/ci/tasks/notify/task.yml
@@ -98,10 +116,14 @@ jobs:
         MESSAGE: "Failed to aggregate TKGI application data for foundation ((foundation))"
         NOTIFICATION_TYPE: "error"
         WEBHOOK_URL: ((teams_webhook_url))
+      tags:
+      - ((worker_tags))
 
   - task: generate-reports
     file: tkgi-app-tracker-repo/ci/tasks/generate-reports/task.yml
     image: s3-container-image
+    tags:
+    - ((worker_tags))
     on_failure:
       task: notify-failure
       file: tkgi-app-tracker-repo/ci/tasks/notify/task.yml
@@ -110,16 +132,22 @@ jobs:
         MESSAGE: "Failed to generate TKGI application reports for foundation ((foundation))"
         NOTIFICATION_TYPE: "error"
         WEBHOOK_URL: ((teams_webhook_url))
+      tags:
+      - ((worker_tags))
 
   - task: package-reports
     file: tkgi-app-tracker-repo/ci/tasks/package-reports/task.yml
     image: s3-container-image
     params:
       ENVIRONMENT: ((foundation))
+    tags:
+    - ((worker_tags))
 
   - put: app-tracker-reports
     params:
       file: packaged-reports/weekly-report-*.tar.gz
+    tags:
+    - ((worker_tags))
 
   - task: notify-success
     file: tkgi-app-tracker-repo/ci/tasks/notify/task.yml
@@ -128,24 +156,5 @@ jobs:
       MESSAGE: "TKGI Application Tracker reports generated successfully for foundation ((foundation)). Reports available in S3."
       NOTIFICATION_TYPE: "success"
       WEBHOOK_URL: ((teams_webhook_url))
-
-  - put: manual-trigger
-
-
-- name: test-pipeline
-  plan:
-  - in_parallel:
-    - get: s3-container-image
-      params:
-        unpack: true
-    - get: tkgi-app-tracker-repo
-      trigger: true
-    - get: config-repo
-
-  - task: run-unit-tests
-    file: tkgi-app-tracker-repo/ci/tasks/run-tests/task.yml
-    image: s3-container-image
-
-  - task: validate-scripts
-    file: tkgi-app-tracker-repo/ci/tasks/validate-scripts/task.yml
-    image: s3-container-image
+    tags:
+    - ((worker_tags))

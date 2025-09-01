@@ -79,7 +79,7 @@ Shows application distribution across TKGI foundations:
 
 | Foundation | Total Apps | Active | Inactive | Active % |
 |------------|------------|--------|----------|----------|
-| DC01-K8S-L-01 | 28 | 17 | 11 | 61% |
+| DC01-K8S-N-01 | 28 | 17 | 11 | 61% |
 | DC02-K8S-N-01 | 22 | 15 | 7 | 68% |
 
 ### Features

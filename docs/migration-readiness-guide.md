@@ -41,7 +41,7 @@ Applications can receive bonus points that improve their migration readiness:
 ```python
 def calculate_migration_readiness(app):
     score = 100
-    
+
     # Deductions
     if app.is_active:
         score -= 30
@@ -55,13 +55,13 @@ def calculate_migration_readiness(app):
         score -= 10
     if app.data_quality == 'incomplete':
         score -= 15
-    
+
     # Bonuses
     if app.days_inactive > 60:
         score += 20
     elif app.days_inactive > 30:
         score += 10
-    
+
     return max(0, min(100, score))
 ```
 
@@ -283,7 +283,7 @@ Executive Summary:
   Total Applications: 157
   Active Applications: 89
   Inactive Applications: 68
-  
+
 Migration Readiness Distribution:
   Ready (80-100):     34 applications (22%)
   Planning (60-79):   45 applications (29%)

@@ -314,7 +314,7 @@ info "Starting multi-foundation TKGI data collection..."
 info "Timestamp: ${TIMESTAMP}"
 
 # Track collected clusters
-declare -a COLLECTED_FILES
+declare -a COLLECTED_FILES=()
 info "DEBUG: COLLECTED_FILES array declared"
 FAILED_CLUSTERS=""
 
@@ -352,6 +352,11 @@ for foundation in $FOUNDATIONS; do
         continue
     fi
 
+    # Clean the clusters output to remove any extraneous output
+    # Filter to keep only valid cluster names (alphanumeric, dots, hyphens, underscores)
+    # Note: hyphen is at the end of character class to avoid range interpretation
+    clusters=$(echo "$clusters" | grep -E '^[a-zA-Z0-9][a-zA-Z0-9._-]*$' || true)
+
     info "Found clusters: $(echo "$clusters" | tr '\n' ' ')"
 
     # Process each cluster in the foundation
@@ -366,8 +371,10 @@ for foundation in $FOUNDATIONS; do
         # Collect data from cluster
         if output_file=$(collect_cluster "${foundation}" "${cluster}"); then
             COLLECTED_FILES+=("${output_file}")
+            info "DEBUG: Added ${output_file} to COLLECTED_FILES. Array now has ${#COLLECTED_FILES[@]} entries"
         else
             FAILED_CLUSTERS="${FAILED_CLUSTERS} ${foundation}/${cluster}"
+            info "DEBUG: Failed to collect from ${foundation}/${cluster}"
         fi
     done <<< "$clusters"
 done
@@ -376,8 +383,14 @@ done
 echo ""
 info "Combining data from all clusters..."
 
-if [[ ${#COLLECTED_FILES[@]} -eq 0 ]]; then
+# Check if array exists and has elements
+array_size=${#COLLECTED_FILES[@]}
+info "DEBUG: Final COLLECTED_FILES array size: ${array_size}"
+if [[ "${array_size}" -eq 0 ]]; then
     error "No data collected from any cluster"
+    if [[ -n "${FAILED_CLUSTERS}" ]]; then
+        error "Failed clusters: ${FAILED_CLUSTERS}"
+    fi
     exit 1
 fi
 
@@ -387,22 +400,61 @@ echo "[" > "${COMBINED_OUTPUT}"
 # Process each collected file
 for i in "${!COLLECTED_FILES[@]}"; do
     file="${COLLECTED_FILES[$i]}"
+    info "DEBUG: Processing file ${i}: ${file}"
+
+    # Check if file exists and is readable
+    if [[ ! -f "${file}" ]]; then
+        error "File does not exist: ${file}"
+        continue
+    fi
+
+    # Show file size for debugging
+    file_size=$(wc -c < "${file}" 2>/dev/null || echo "unknown")
+    info "DEBUG: File size: ${file_size} bytes"
+
+    # Validate individual file first
+    if ! jq empty "${file}" 2>/dev/null; then
+        error "Invalid JSON in file: ${file}"
+        info "DEBUG: First few lines of invalid file:"
+        head -5 "${file}" >&2 || true
+        continue
+    fi
+
+    # Count records in file
+    record_count=$(jq 'length' "${file}" 2>/dev/null || echo "0")
+    info "DEBUG: File contains ${record_count} records"
 
     # Extract array contents and add to combined file
     if [[ $i -eq 0 ]]; then
-        # First file - extract array contents without brackets
-        jq -c '.[]' "${file}" >> "${COMBINED_OUTPUT}"
+        # First file - extract array contents without brackets, add commas between objects
+        info "DEBUG: Processing first file - extracting array contents"
+        if ! jq -c '.[]' "${file}" | awk '{if(NR>1) print prev ","; prev=$0} END{if(prev) print prev}' >> "${COMBINED_OUTPUT}"; then
+            error "Failed to process file: ${file}"
+            continue
+        fi
     else
-        # Subsequent files - add comma and extract contents
+        # Subsequent files - add comma and extract contents with commas between objects
+        info "DEBUG: Processing subsequent file - adding comma and contents"
         echo "," >> "${COMBINED_OUTPUT}"
-        jq -c '.[]' "${file}" >> "${COMBINED_OUTPUT}"
+        if ! jq -c '.[]' "${file}" | awk '{if(NR>1) print prev ","; prev=$0} END{if(prev) print prev}' >> "${COMBINED_OUTPUT}"; then
+            error "Failed to process file: ${file}"
+            continue
+        fi
     fi
+
+    info "DEBUG: Successfully processed file ${i}"
 done
 
 # Close the array
 echo "]" >> "${COMBINED_OUTPUT}"
 
+# Debug combined output
+combined_size=$(wc -c < "${COMBINED_OUTPUT}" 2>/dev/null || echo "unknown")
+info "DEBUG: Combined file size: ${combined_size} bytes"
+info "DEBUG: Combined file location: ${COMBINED_OUTPUT}"
+
 # Validate combined JSON
+info "DEBUG: Validating combined JSON..."
 if jq empty "${COMBINED_OUTPUT}" 2>/dev/null; then
     echo ""
     completed "Data collection completed successfully"
@@ -441,5 +493,27 @@ if jq empty "${COMBINED_OUTPUT}" 2>/dev/null; then
     fi
 else
     error "Invalid JSON generated in combined output file"
+    info "DEBUG: Attempting to identify JSON syntax error..."
+
+    # Try to get more specific error information
+    jq_error=$(jq empty "${COMBINED_OUTPUT}" 2>&1 || true)
+    if [[ -n "${jq_error}" ]]; then
+        info "DEBUG: jq error details: ${jq_error}"
+    fi
+
+    # Show first and last few lines of combined output for debugging
+    info "DEBUG: First 10 lines of combined output:"
+    head -10 "${COMBINED_OUTPUT}" >&2 || true
+
+    info "DEBUG: Last 10 lines of combined output:"
+    tail -10 "${COMBINED_OUTPUT}" >&2 || true
+
+    # Check for common JSON issues
+    if grep -q "^\[.*\]$" "${COMBINED_OUTPUT}"; then
+        info "DEBUG: File appears to have proper array brackets"
+    else
+        info "DEBUG: File may be missing proper array brackets"
+    fi
+
     exit 1
 fi

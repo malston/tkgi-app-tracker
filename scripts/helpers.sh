@@ -8,19 +8,19 @@ export YELLOW='\033[0;33m'
 export NOCOLOR='\033[0m'
 
 function info() {
-    printf "${CYAN}> %s\n${NOCOLOR}" "$@"
+    printf "${CYAN}> %s\n${NOCOLOR}" "$@" >&2
 }
 
 function warn() {
-    printf "${YELLOW}! %s\n${NOCOLOR}" "$@"
+    printf "${YELLOW}! %s\n${NOCOLOR}" "$@" >&2
 }
 
 function error() {
-    printf "${RED}x %s\n${NOCOLOR}" "$@"
+    printf "${RED}x %s\n${NOCOLOR}" "$@" >&2
 }
 
 function completed() {
-    printf "${GREEN}✔ %s\n${NOCOLOR}" "$@"
+    printf "${GREEN}✔ %s\n${NOCOLOR}" "$@" >&2
 }
 
 function login_tkgi() {
@@ -94,7 +94,7 @@ function tkgi_get_credentials() {
   fi
 
   kubectl config use-context "${cluster}" &>/dev/null
-  printf "${GREEN}%s${NOCOLOR}\n" "Switched to context \"${cluster}\"."
+  printf "${GREEN}%s${NOCOLOR}\n" "Switched to context \"${cluster}\"." >&2
 }
 
 # Environment validation
@@ -111,30 +111,30 @@ function validate_required_env() {
 function check_dependencies() {
     local dependencies=("$@")
     local missing_deps=()
-    
+
     for dep in "${dependencies[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
             missing_deps+=("$dep")
         fi
     done
-    
+
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         error "Missing required dependencies: ${missing_deps[*]}"
         return 1
     fi
-    
+
     return 0
 }
 
 # Directory management
 function create_output_directory() {
     local dir_path="$1"
-    
+
     if [[ -z "$dir_path" ]]; then
         error "Directory path is required"
         return 1
     fi
-    
+
     mkdir -p "$dir_path"
     info "Created output directory: $dir_path"
 }
@@ -144,24 +144,24 @@ function log_execution_time() {
     local operation="$1"
     shift
     local command=("$@")
-    
+
     local start_time
     start_time=$(date +%s)
-    
+
     info "Starting $operation..."
     "${command[@]}"
     local exit_code=$?
-    
+
     local end_time
     end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
+
     if [[ $exit_code -eq 0 ]]; then
         completed "$operation completed in ${duration}s"
     else
         error "$operation failed after ${duration}s"
     fi
-    
+
     return $exit_code
 }
 
@@ -170,22 +170,22 @@ function retry_command() {
     local max_attempts="$1"
     shift
     local command=("$@")
-    
+
     local attempt=1
     while [[ $attempt -le $max_attempts ]]; do
         if "${command[@]}"; then
             return 0
         fi
-        
+
         warn "Command failed (attempt $attempt/$max_attempts)"
         if [[ $attempt -lt $max_attempts ]]; then
             info "Retrying in 5 seconds..."
             sleep 5
         fi
-        
+
         ((attempt++))
     done
-    
+
     error "Command failed after $max_attempts attempts"
     return 1
 }
@@ -194,19 +194,19 @@ function retry_command() {
 function parse_json_field() {
     local json_file="$1"
     local field_path="$2"
-    
+
     if [[ ! -f "$json_file" ]]; then
         error "JSON file not found: $json_file"
         return 1
     fi
-    
+
     jq -r "$field_path" "$json_file"
 }
 
 # Date/time utilities
 function format_timestamp() {
     local timestamp="$1"
-    
+
     if [[ -z "$timestamp" ]]; then
         date -u +"%Y-%m-%dT%H:%M:%SZ"
     else
@@ -217,12 +217,12 @@ function format_timestamp() {
 
 function calculate_days_since() {
     local timestamp="$1"
-    
+
     if [[ -z "$timestamp" ]]; then
         echo "999"
         return
     fi
-    
+
     # Parse the timestamp and calculate days since
     local epoch_timestamp
     if command -v gdate &> /dev/null; then
@@ -234,31 +234,31 @@ function calculate_days_since() {
         local clean_timestamp="${timestamp%Z}"
         epoch_timestamp=$(date -j -f "%Y-%m-%dT%H:%M:%S" "$clean_timestamp" +%s 2>/dev/null || echo "0")
     fi
-    
+
     if [[ "$epoch_timestamp" == "0" ]]; then
         echo "999"
         return
     fi
-    
+
     local current_epoch
     current_epoch=$(date +%s)
     local diff_seconds=$((current_epoch - epoch_timestamp))
     local diff_days=$((diff_seconds / 86400))
-    
+
     echo "$diff_days"
 }
 
 # Application ID utilities
 function sanitize_app_id() {
     local app_id="$1"
-    
+
     # Convert to lowercase and replace special characters with hyphens
     echo "$app_id" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g'
 }
 
 function extract_app_id() {
     local namespace_name="$1"
-    
+
     # Extract application ID from namespace name
     # Assumes format: app-{id}-{env} or similar
     if [[ "$namespace_name" =~ ^app-([^-]+) ]]; then
@@ -274,7 +274,7 @@ function extract_app_id() {
 # Namespace classification
 function is_system_namespace() {
     local namespace="$1"
-    
+
     local system_namespaces=(
         "kube-system"
         "kube-public"
@@ -293,12 +293,12 @@ function is_system_namespace() {
         "vmware-system-csi"
         "vmware-system-tmc"
     )
-    
+
     for sys_ns in "${system_namespaces[@]}"; do
         if [[ "$namespace" == "$sys_ns" ]]; then
             return 0
         fi
     done
-    
+
     return 1
 }
